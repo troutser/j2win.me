@@ -8,7 +8,7 @@ export const site = {
   roles: ['software engineer', 'security researcher', 'CTF player', 'tool builder'],
   location: 'Los Angeles, California',
   about: [
-    "I build software and break it (responsibly). I'm into offensive security, reverse engineering, and writing tools that make the boring parts of hacking faster.",
+    "I'm into offensive security, reverse engineering, and writing tools that make the boring parts of hacking faster.",
     'This site is where I publish writeups and hands-on walkthroughs. Every post has live terminals and runnable code so you can follow along in your browser.',
   ],
   socials: {

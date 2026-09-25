@@ -6,7 +6,7 @@ import sitemap from '@astrojs/sitemap';
 // Change `site` to your deployed URL (used for RSS, sitemap and canonical links).
 // If deploying to https://<user>.github.io/<repo>/, also set `base: '/<repo>'`.
 export default defineConfig({
-  site: 'https://troutser.github.io',
+  site: 'https://j2win.me',
   integrations: [mdx(), sitemap()],
   markdown: {
     shikiConfig: {

@@ -13,14 +13,14 @@ export const projects: Project[] = [
     name: 'portscout',
     description: 'Async TCP port scanner with service banner grabbing and JSON output. Built to learn how nmap works under the hood.',
     tags: ['Python', 'asyncio', 'networking'],
-    repo: 'https://github.com/troutser',
+    repo: 'https://github.com/troutser/portscout',
     status: 'active',
   },
   {
     name: 'jwt-autopsy',
     description: 'CLI that decodes, inspects and fuzzes JSON Web Tokens — flags alg:none, weak HMAC secrets and missing claims.',
     tags: ['Go', 'web security', 'CLI'],
-    repo: 'https://github.com/troutser',
+    repo: 'https://github.com/troutser/jwt-autopsy',
     status: 'wip',
   },
   {

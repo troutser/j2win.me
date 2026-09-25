@@ -7,12 +7,12 @@ difficulty: beginner
 requirements: ['Python 3.11+ (for portscout)', 'Go 1.22+ (for jwt-autopsy)']
 ---
 
-Using a tool is not the same as understanding it. These two projects reimplement a fraction of what nmap and a JWT security toolkit do, in code short enough to read in one sitting:
+These two projects reimplement a small part of what nmap and a JWT security toolkit do, as a way to learn how those tools work. Each codebase is short enough to read in one sitting:
 
 - **[portscout](https://github.com/troutser/portscout)**: an async TCP port scanner in Python, written to show how nmap decides a port is open, closed, or filtered.
 - **[jwt-autopsy](https://github.com/troutser/jwt-autopsy)**: a Go CLI that decodes JSON Web Tokens, explains risky configurations, and can test for the weaknesses it describes.
 
-Neither replaces the production tool. Both are written to be read.
+Both are learning projects and are not intended for production use.
 
 <Callout type="warning" title="legal">
   These tools are for hosts and tokens covered by **explicit authorization**. A JWT is often a live credential. Every
@@ -32,7 +32,7 @@ scanner <--SYN/ACK--  target   "yes, port 80 is listening"      (open)
         (silence)                                               (filtered)
 ```
 
-portscout performs a **connect scan** (nmap's `-sT`): it asks the OS to `connect()` normally and observes the outcome. This needs no raw sockets and no root, and because the scan ends with a real connection, a banner can be read from it. The cost is noise: every open port requires a full handshake, which the target service typically logs. nmap's default when run as root is a **SYN scan** (`-sS`), which sends the SYN directly and never completes the handshake — faster and quieter, but dependent on raw sockets.
+portscout performs a **connect scan** (nmap's `-sT`): it asks the OS to `connect()` normally and observes the outcome. This needs no raw sockets and no root, and because the scan ends with a real connection, a banner can be read from it. The cost is noise: every open port requires a full handshake, which the target service typically logs. nmap's default when run as root is a **SYN scan** (`-sS`), which sends the SYN directly and does not complete the handshake. It is faster and generates fewer logs, and it requires raw sockets.
 
 In Python, the three outcomes map almost directly onto exceptions:
 
@@ -53,7 +53,7 @@ except OSError:
     return result(PortState.FILTERED)
 ```
 
-A **closed** port is informative to a scanner, because the RST proves the host is up. **Filtered** means nothing returned, usually because a firewall dropped the packet deliberately, leaving the scanner with no signal.
+A **closed** port confirms that the host is up, because the host sent an RST. A **filtered** port produced no response, usually because a firewall dropped the packet, so the scanner cannot determine the host's state.
 
 <Callout type="note" title="Windows behaviour">
   When a connection is refused, Windows retries the SYN twice before giving up, so even on `127.0.0.1` a closed port
@@ -137,9 +137,9 @@ At `CONCURRENCY = 1` the scan is sequential. At 20 all probes run at once, and t
 
 ## jwt-autopsy
 
-### Base64 is not encryption
+### Token structure
 
-A signed JWT is three base64url segments joined by dots: **header**, **payload**, and **signature**. The first two are plain JSON, readable by anyone holding the token. The signature is the only element that establishes trust, and it does so only when the verifier selects the algorithm and key itself rather than trusting the header.
+A signed JWT is three base64url segments joined by dots: **header**, **payload**, and **signature**. The header and payload are base64url-encoded JSON and can be read by anyone holding the token. The signature authenticates the token only if the verifier takes the algorithm and key from its own configuration. If the verifier uses the `alg` value from the header, the token's creator controls how it is verified.
 
 The cell below decodes a token and applies a few of jwt-autopsy's checks. The token can be replaced with an authorized one, or its header edited:
 
@@ -228,7 +228,7 @@ Signature: VALID
 `}
 />
 
-The signature is valid, and the tool notes that a 19-byte secret is below the recommended length. HMAC is symmetric: any party that can verify a token can also mint one, so the strength of the secret is the whole security of the scheme.
+The signature is valid, and the tool reports that the 19-byte secret is below the recommended length. HMAC uses the same secret to sign and to verify, so any party able to verify tokens can also create them. The security of the scheme depends entirely on the secret.
 
 <Callout type="note">
   The `[!]` prefix is added here so the terminal colours the warning; the tool prints `warning: ...` to stderr.
@@ -236,7 +236,7 @@ The signature is valid, and the tool notes that a 19-byte secret is below the re
 
 ### Weak secrets
 
-`inspect` describes the risk of a weak HMAC secret; `crack` measures it. Given an `HS*` token and a wordlist, it tests each candidate as the secret and reports the first that produces a valid signature. A match means the secret is guessable and can be recovered offline from a single captured token, after which valid tokens can be minted at will. The check runs entirely locally, and is only meaningful on tokens covered by authorization.
+`crack` tests whether an HMAC secret appears in a wordlist. Given an `HS*` token and a wordlist, it tests each candidate as the secret and reports the first one that produces a valid signature. A match means the secret can be recovered offline from a single captured token and used to create valid tokens. The check runs locally and should only be used on tokens covered by authorization.
 
 <Terminal
   user="jeremy"
@@ -250,11 +250,11 @@ This HS256 token was signed with a guessable secret; anyone who recovers it can 
 `}
 />
 
-The defensive lesson is direct: an HMAC secret should be long and random. Only asymmetric tokens (`RS*`, `ES*`, `EdDSA`) resist this class of test, because they rely on a private key rather than a shared secret.
+An HMAC secret should be long and randomly generated. Tokens signed with asymmetric algorithms (`RS*`, `ES*`, `EdDSA`) are not subject to this test, because the signing key is a private key that verifiers never hold.
 
 ### Algorithm confusion
 
-`verify` refuses to use a key for any algorithm other than the one it belongs to. This is the most important design choice in the tool, because it blocks a well-documented mistake:
+`verify` only uses a key with the algorithm that key belongs to. This prevents a documented vulnerability known as algorithm confusion:
 
 1. The server signs tokens with **RS256**, holding an RSA private key and publishing the public key.
 2. The header is changed to `alg: HS256` and the token is HMAC-signed using the **public key bytes** as the secret — possible for anyone, since the key is public.
@@ -263,15 +263,15 @@ The defensive lesson is direct: an HMAC secret should be long and random. Only a
 `fuzz` can emit exactly this variant (`--public-key`), along with `alg:none` and empty-signature variants, so a verifier can be tested against each mistake in a controlled setting. It only writes tokens to stdout; delivering them anywhere is a separate step that must remain within authorized scope.
 
 <Spoiler label="how is it fixed?">
-  Bind every key to one algorithm, and never let the token choose. jwt-autopsy refuses to use a PEM public key for
+  Each key should be bound to one algorithm, and the verifier should not take the algorithm from the token header. jwt-autopsy refuses to use a PEM public key for
   `HS*`, or a secret for `RS*`/`ES*`/`EdDSA`, and reports `key type does not match algorithm` instead of attempting the
   verification. A JWT library should be configured the same way, with an explicit allow-list of algorithms.
 </Spoiler>
 
 ## Takeaways
 
-- **Reimplementing a tool is an efficient way to learn the original.** After portscout, nmap's `filtered` state and its `-sT`/`-sS` flags are legible rather than opaque.
-- **Explanation matters as much as detection.** Each jwt-autopsy finding states why it matters and what a correct verifier does. A finding is an observation about the token; whether it is exploitable depends on the receiving service.
+- **Reimplementing a tool is an efficient way to learn how the original works.** Building portscout explained nmap's `filtered` state and the difference between its `-sT` and `-sS` flags.
+- **Findings include explanations.** Each jwt-autopsy finding states the associated risk and what a correct verifier does. A finding describes the token only; whether it is exploitable depends on the service that receives it.
 - **Tests should not touch the network.** portscout's tests start local asyncio servers (an echo server, a fake SSH greeting, a fake HTTP server) and scan those. jwt-autopsy's tests mint their own signed tokens with a test-only helper.
 
 Both repositories are on GitHub: [portscout](https://github.com/troutser/portscout) and [jwt-autopsy](https://github.com/troutser/jwt-autopsy). The READMEs go further, and jwt-autopsy's includes a reference table for every finding code.

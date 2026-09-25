@@ -6,7 +6,7 @@ tags: ['meta']
 difficulty: beginner
 ---
 
-Most security writeups are walls of screenshots. I wanted posts you can actually **work through**: copy real commands, run real code, and poke at the results without leaving the page. Here's what you'll see.
+Posts on this blog are interactive. You can copy commands, run code, and inspect the output without leaving the page. This post describes each component.
 
 ## Terminal sessions
 
@@ -44,7 +44,7 @@ uid=0(root) gid=0(root) groups=0(root)
 
 ## Runnable code
 
-Code cells are **editable** and run right in your browser. Change something and hit <kbd>Run</kbd> (or <kbd>Ctrl</kbd> + <kbd>Enter</kbd>). JavaScript runs in an isolated Web Worker, so even an infinite loop gets killed after a few seconds instead of freezing the page.
+Code cells are **editable** and run right in your browser. Change something and hit <kbd>Run</kbd> (or <kbd>Ctrl</kbd> + <kbd>Enter</kbd>). JavaScript runs in an isolated Web Worker, and any script that runs longer than a few seconds is terminated.
 
 <Runner
   lang="js"
@@ -62,7 +62,7 @@ console.log('sha256:', hex);
 `}
 />
 
-Python works too, powered by [Pyodide](https://pyodide.org) (CPython compiled to WebAssembly). The first run downloads the runtime, then it's instant. Python cells on the same page **share state**, like a Jupyter notebook — define something in one cell, use it in the next.
+Python works too, powered by [Pyodide](https://pyodide.org) (CPython compiled to WebAssembly). The first run downloads the runtime; later runs start immediately. Python cells on the same page **share state**, like a Jupyter notebook — define something in one cell, use it in the next.
 
 <Runner
   lang="python"
@@ -118,4 +118,4 @@ For CTF-style posts, hints and solutions stay hidden until you want them:
   Like this. Hints and solutions stay folded up until you click them.
 </Spoiler>
 
-That's everything. Pick a post and get your hands dirty.
+These are all the components used in the posts.

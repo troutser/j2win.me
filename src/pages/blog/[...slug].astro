@@ -1,0 +1,30 @@
+---
+import { getCollection, render } from 'astro:content';
+import Post from '../../layouts/Post.astro';
+import Terminal from '../../components/mdx/Terminal.astro';
+import Runner from '../../components/mdx/Runner.astro';
+import Callout from '../../components/mdx/Callout.astro';
+import Spoiler from '../../components/mdx/Spoiler.astro';
+
+export async function getStaticPaths() {
+  const posts = (await getCollection('blog', ({ data }) => !data.draft)).sort(
+    (a, b) => a.data.date.valueOf() - b.data.date.valueOf(),
+  );
+  const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+  const link = (p?: (typeof posts)[number]) => p && { title: p.data.title, url: `${base}/blog/${p.id}/` };
+  return posts.map((post, i) => ({
+    params: { slug: post.id },
+    props: { post, prev: link(posts[i - 1]), next: link(posts[i + 1]) },
+  }));
+}
+
+const { post, prev, next } = Astro.props;
+const { Content, headings } = await render(post);
+const words = (post.body ?? '').split(/\s+/).filter(Boolean).length;
+const readingTime = Math.max(1, Math.round(words / 220));
+---
+
+<Post {...post.data} {headings} {readingTime} {prev} {next}>
+  {/* These components are available in every .mdx post without importing */}
+  <Content components={{ Terminal, Runner, Callout, Spoiler }} />
+</Post>

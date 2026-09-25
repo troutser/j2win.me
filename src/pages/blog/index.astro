@@ -1,0 +1,67 @@
+---
+import { getCollection } from 'astro:content';
+import Base from '../../layouts/Base.astro';
+import PostCard from '../../components/PostCard.astro';
+
+const posts = (await getCollection('blog', ({ data }) => !data.draft)).sort(
+  (a, b) => b.data.date.valueOf() - a.data.date.valueOf(),
+);
+const tags = [...new Set(posts.flatMap((p) => p.data.tags))].sort();
+---
+
+<Base title="Blog" description="Writeups, walkthroughs and hands-on security labs.">
+  <h1>Blog</h1>
+  <p>Writeups, CTF solutions and hands-on walkthroughs. Posts include terminals and runnable code you can follow along with.</p>
+  {
+    tags.length > 0 && (
+      <p class="small">
+        <b>Filter by tag:</b> <button type="button" data-tag="">all</button>
+        {tags.map((t) => (
+          <button type="button" data-tag={t}>
+            {t}
+          </button>
+        ))}
+      </p>
+    )
+  }
+  <ul>
+    {posts.map((p) => <PostCard post={p} />)}
+  </ul>
+  <p class="empty muted" hidden>No posts with that tag.</p>
+</Base>
+
+<style>
+  button[aria-pressed='true'] {
+    background: #ffffcc;
+    font-weight: bold;
+  }
+</style>
+
+<script>
+  const buttons = [...document.querySelectorAll<HTMLButtonElement>('[data-tag]')];
+  const items = [...document.querySelectorAll<HTMLElement>('.post-item')];
+  const empty = document.querySelector<HTMLElement>('.empty')!;
+  let tag = new URLSearchParams(location.search).get('tag') ?? '';
+
+  function apply() {
+    let shown = 0;
+    for (const li of items) {
+      const ok = !tag || li.dataset.tags!.split(',').includes(tag);
+      li.hidden = !ok;
+      if (ok) shown++;
+    }
+    empty.hidden = shown > 0;
+    buttons.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.tag === tag)));
+    const url = new URL(location.href);
+    if (tag) url.searchParams.set('tag', tag);
+    else url.searchParams.delete('tag');
+    history.replaceState(null, '', url);
+  }
+  buttons.forEach((b) =>
+    b.addEventListener('click', () => {
+      tag = b.dataset.tag ?? '';
+      apply();
+    }),
+  );
+  apply();
+</script>

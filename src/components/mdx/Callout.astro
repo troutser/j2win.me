@@ -1,0 +1,38 @@
+---
+/** <Callout type="warning" title="Legal">Only scan machines you own.</Callout> */
+interface Props {
+  type?: 'note' | 'tip' | 'warning' | 'danger';
+  title?: string;
+}
+const { type = 'note', title } = Astro.props;
+const label = { note: 'Note', tip: 'Tip', warning: 'Warning', danger: 'Danger' }[type];
+---
+
+<aside class:list={['callout', type]}>
+  <b>{title ?? label}:</b>
+  <slot />
+</aside>
+
+<style>
+  .callout {
+    margin: 1em 0;
+    padding: 6px 12px;
+    border: 1px solid var(--border);
+    background: #f0f4ff;
+  }
+  .tip {
+    background: #f0fff0;
+  }
+  .warning {
+    background: #ffffe0;
+  }
+  .danger {
+    background: #fff0f0;
+  }
+  .callout :global(> :first-child) {
+    margin-top: 0;
+  }
+  .callout :global(> :last-child) {
+    margin-bottom: 0;
+  }
+</style>

@@ -1,0 +1,145 @@
+---
+/**
+ * A follow-along terminal session for blog posts.
+ *
+ * <Terminal title="kali@attackbox" code={`
+ * $ nmap -sV 10.10.10.5
+ * [*] Starting scan...
+ * 22/tcp open ssh
+ * `} />
+ *
+ * Lines starting with "$ " are user commands, "# " are root commands.
+ * Every other line is output. Output lines starting with [+] [-] [!] [*]
+ * are colored automatically. Each command gets a copy button.
+ */
+interface Props {
+  code: string;
+  title?: string;
+  user?: string;
+  host?: string;
+  path?: string;
+}
+
+const { code, title, user = 'user', host = 'box', path = '~' } = Astro.props;
+
+type Line = { kind: 'cmd' | 'root' | 'out'; text: string; tone?: string };
+
+const lines: Line[] = code
+  .replace(/^\n+|\s+$/g, '')
+  .split('\n')
+  .map((raw) => {
+    if (raw.startsWith('$ ')) return { kind: 'cmd', text: raw.slice(2) };
+    if (raw.startsWith('# ')) return { kind: 'root', text: raw.slice(2) };
+    const t = raw.trimStart();
+    const tone = t.startsWith('[+]')
+      ? 'good'
+      : t.startsWith('[-]')
+        ? 'bad'
+        : t.startsWith('[!]')
+          ? 'warn'
+          : t.startsWith('[*]')
+            ? 'info'
+            : undefined;
+    return { kind: 'out', text: raw, tone };
+  });
+
+const hasCmds = lines.some((l) => l.kind !== 'out');
+---
+
+<figure class="win term" data-term>
+  <div class="win-bar">
+    <span class="win-title">{title ?? `${user}@${host}: ${path}`}</span>
+    {
+      hasCmds && (
+        <span class="win-actions">
+          <button class="icon-btn" data-copy-all type="button" title="Copy all commands">
+            copy commands
+          </button>
+        </span>
+      )
+    }
+  </div>
+  <div class="term-body">
+    {
+      lines.map((l) =>
+        l.kind === 'out' ? (
+          <div class:list={['t-out', l.tone && `tone-${l.tone}`]}>{l.text || ' '}</div>
+        ) : (
+          <div class="t-cmd" data-cmd={l.text}>
+            <span class="t-prompt" aria-hidden="true">
+              {l.kind === 'root' ? `root@${host}:${path}#` : `${user}@${host}:${path}$`}
+            </span>{' '}
+            <code class="t-text">{l.text}</code>
+            <button class="t-copy" type="button" aria-label={`Copy command: ${l.text}`} title="Copy">
+              copy
+            </button>
+          </div>
+        ),
+      )
+    }
+  </div>
+</figure>
+
+<style>
+  .term-body {
+    padding: 8px 10px;
+    background: #000000;
+    color: #cccccc;
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.4;
+    overflow-x: auto;
+  }
+  .t-out {
+    white-space: pre;
+  }
+  .t-cmd {
+    white-space: nowrap;
+    color: #ffffff;
+  }
+  .term-body .t-text {
+    padding: 0;
+    background: none;
+    font: inherit;
+    color: #ffffff;
+    white-space: pre;
+  }
+  .t-prompt {
+    user-select: none;
+    color: #00cc00;
+  }
+  .tone-good {
+    color: #33ff33;
+  }
+  .tone-bad {
+    color: #ff5555;
+  }
+  .tone-warn {
+    color: #ffff55;
+  }
+  .tone-info {
+    color: #55ccff;
+  }
+  .t-copy {
+    margin-left: 8px;
+    padding: 0 4px;
+    font-size: 10px;
+    vertical-align: middle;
+  }
+</style>
+
+<script>
+  import { copyText, flash } from '../../scripts/clipboard';
+
+  for (const term of document.querySelectorAll<HTMLElement>('[data-term]')) {
+    const cmds = [...term.querySelectorAll<HTMLElement>('.t-cmd')].map((r) => r.dataset.cmd!);
+    term.querySelectorAll<HTMLButtonElement>('.t-copy').forEach((b) =>
+      b.addEventListener('click', async () => {
+        if (await copyText(b.closest<HTMLElement>('.t-cmd')!.dataset.cmd!)) flash(b, 'copied!');
+      }),
+    );
+    term.querySelector<HTMLButtonElement>('[data-copy-all]')?.addEventListener('click', async (e) => {
+      if (await copyText(cmds.join('\n'))) flash(e.currentTarget as HTMLButtonElement, 'copied!');
+    });
+  }
+</script>

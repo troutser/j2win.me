@@ -1,0 +1,121 @@
+---
+title: 'How to follow along with this blog'
+description: 'A quick tour of the interactive terminals, runnable code cells, and hints you will find in every post.'
+date: 2026-09-01
+tags: ['meta']
+difficulty: beginner
+---
+
+Most security writeups are walls of screenshots. I wanted posts you can actually **work through**: copy real commands, run real code, and poke at the results without leaving the page. Here's what you'll see.
+
+## Terminal sessions
+
+Terminal blocks show a session exactly as it happened. Click **copy** next to a command to grab it, or hit **copy commands** to grab every command at once and paste them into your own shell.
+
+<Terminal
+  user="kali"
+  host="attackbox"
+  code={`
+$ whoami
+kali
+$ uname -a
+Linux attackbox 6.8.0-kali1-amd64 #1 SMP x86_64 GNU/Linux
+$ echo "follow along!" | base64
+Zm9sbG93IGFsb25nIQo=
+`}
+/>
+
+Output lines are colored by convention: `[+]` success, `[-]` failure, `[!]` warning, `[*]` info.
+
+<Terminal
+  user="kali"
+  host="attackbox"
+  code={`
+$ ./exploit.py --target 10.10.10.5
+[*] Connecting to 10.10.10.5:8080
+[*] Sending payload (412 bytes)
+[!] Target responded slowly, retrying
+[-] Attempt 1 failed
+[+] Got shell!
+# id
+uid=0(root) gid=0(root) groups=0(root)
+`}
+/>
+
+## Runnable code
+
+Code cells are **editable** and run right in your browser. Change something and hit <kbd>Run</kbd> (or <kbd>Ctrl</kbd> + <kbd>Enter</kbd>). JavaScript runs in an isolated Web Worker, so even an infinite loop gets killed after a few seconds instead of freezing the page.
+
+<Runner
+  lang="js"
+  title="hello.js"
+  code={`
+const secret = 'correct horse battery staple';
+const bytes = new TextEncoder().encode(secret);
+const hash = await crypto.subtle.digest('SHA-256', bytes);
+
+const hex = [...new Uint8Array(hash)]
+  .map((b) => b.toString(16).padStart(2, '0'))
+  .join('');
+
+console.log('sha256:', hex);
+`}
+/>
+
+Python works too, powered by [Pyodide](https://pyodide.org) (CPython compiled to WebAssembly). The first run downloads the runtime, then it's instant. Python cells on the same page **share state**, like a Jupyter notebook — define something in one cell, use it in the next.
+
+<Runner
+  lang="python"
+  title="cell_1.py"
+  code={`
+import hashlib
+
+wordlist = ["password", "letmein", "hunter2", "dragon"]
+target = hashlib.md5(b"hunter2").hexdigest()
+print("target hash:", target)
+`}
+/>
+
+<Runner
+  lang="python"
+  title="cell_2.py"
+  code={`
+# uses 'wordlist' and 'target' from the cell above
+for word in wordlist:
+    if hashlib.md5(word.encode()).hexdigest() == target:
+        print(f"[+] cracked: {word}")
+        break
+else:
+    print("[-] not in wordlist")
+`}
+/>
+
+## Regular code blocks
+
+Plain snippets get syntax highlighting, a filename, and a copy button:
+
+```python title="port_check.py"
+import socket
+
+def is_open(host: str, port: int, timeout: float = 1.0) -> bool:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.settimeout(timeout)
+        return s.connect_ex((host, port)) == 0
+```
+
+## Callouts and hints
+
+<Callout type="tip">Tips look like this: shortcuts and things worth knowing.</Callout>
+
+<Callout type="warning" title="legal">
+  Only test systems you own or have **written permission** to test. Every lab in this blog runs against local VMs or
+  deliberately vulnerable targets.
+</Callout>
+
+For CTF-style posts, hints and solutions stay hidden until you want them:
+
+<Spoiler label="hint: what does a spoiler look like?">
+  Like this. Hints and solutions stay folded up until you click them.
+</Spoiler>
+
+That's everything. Pick a post and get your hands dirty.

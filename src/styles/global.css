@@ -1,0 +1,188 @@
+/* Plain, early-2000s personal homepage style. No animations, no transitions. */
+:root {
+  --bg: #ffffff;
+  --page: #ffffff;
+  --text: #000000;
+  --muted: #666666;
+  --border: #999999;
+  --light: #eeeeee;
+  --header: #003366;
+  --link: #0000cc;
+  --visited: #551a8b;
+  --good: #006600;
+  --bad: #cc0000;
+  --warn: #996600;
+  --info: #0055aa;
+  --mono: 'Courier New', Courier, monospace;
+  --sans: Verdana, Tahoma, Arial, Helvetica, sans-serif;
+  --serif: Georgia, 'Times New Roman', Times, serif;
+  --maxw: 760px;
+  color-scheme: light;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  padding: 16px 0;
+  background: #e5e5e5;
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+a {
+  color: var(--link);
+  text-decoration: underline;
+}
+a:visited {
+  color: var(--visited);
+}
+a:hover {
+  color: #ff0000;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--serif);
+  line-height: 1.25;
+}
+h1 {
+  font-size: 1.9em;
+  margin: 0.3em 0 0.4em;
+}
+h2 {
+  font-size: 1.4em;
+  margin: 1.4em 0 0.5em;
+  padding-bottom: 2px;
+  border-bottom: 1px solid var(--border);
+}
+h3 {
+  font-size: 1.15em;
+  margin: 1.2em 0 0.4em;
+}
+
+code,
+kbd,
+pre,
+.mono {
+  font-family: var(--mono);
+}
+
+hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 1.5em 0;
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+table {
+  border-collapse: collapse;
+}
+th,
+td {
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+th {
+  background: var(--light);
+}
+
+/* The page "box" */
+.page {
+  width: 100%;
+  max-width: var(--maxw);
+  margin: 0 auto;
+  background: var(--page);
+  border: 1px solid #888888;
+}
+.content {
+  padding: 8px 20px 20px;
+}
+
+.skip-link {
+  position: absolute;
+  left: -9999px;
+}
+.skip-link:focus {
+  left: 8px;
+  top: 8px;
+  background: #ffff99;
+  padding: 4px 8px;
+}
+
+.small {
+  font-size: 0.85em;
+}
+.muted {
+  color: var(--muted);
+}
+
+/* Plain buttons */
+button,
+.btn {
+  font-family: var(--sans);
+  font-size: 12px;
+  padding: 1px 6px;
+  border: 1px solid #777777;
+  background: #dddddd;
+  color: #000000;
+  cursor: pointer;
+}
+button:hover {
+  background: #cccccc;
+}
+button:disabled {
+  color: #888888;
+  cursor: wait;
+}
+
+/* Boxes used by terminals, runners and code blocks */
+.win {
+  margin: 1.2em 0;
+  border: 1px solid var(--border);
+  background: #ffffff;
+}
+.win-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 6px;
+  border-bottom: 1px solid var(--border);
+  background: var(--light);
+  font-size: 12px;
+}
+.win-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--mono);
+  font-weight: bold;
+}
+.win-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.icon-btn.ok {
+  background: #ccffcc;
+}

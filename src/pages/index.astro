@@ -1,0 +1,65 @@
+---
+import { getCollection } from 'astro:content';
+import Base from '../layouts/Base.astro';
+import PostCard from '../components/PostCard.astro';
+import ProjectCard from '../components/ProjectCard.astro';
+import { site } from '../site.config';
+import { projects } from '../data/projects';
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const posts = (await getCollection('blog', ({ data }) => !data.draft))
+  .sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf())
+  .slice(0, 5);
+const socials = Object.entries(site.socials).filter(([, v]) => v);
+---
+
+<Base>
+  <h1>Welcome!</h1>
+  <p>{site.description}</p>
+
+  <h2 id="about">About Me</h2>
+  {site.about.map((p) => <p>{p}</p>)}
+  <p><b>Location:</b> {site.location}</p>
+
+  <h3>Skills</h3>
+  <table>
+    {
+      Object.entries(site.skills).map(([cat, items]) => (
+        <tr>
+          <th>{cat}</th>
+          <td>{items.join(', ')}</td>
+        </tr>
+      ))
+    }
+  </table>
+
+  <h2 id="projects">Projects</h2>
+  <ul>
+    {projects.map((p) => <ProjectCard project={p} />)}
+  </ul>
+
+  <h2 id="blog">Recent Blog Posts</h2>
+  <ul>
+    {posts.map((p) => <PostCard post={p} />)}
+  </ul>
+  <p><a href={`${base}/blog/`}>See all posts &raquo;</a></p>
+
+  <h2 id="contact">Contact</h2>
+  <p>Open to collaborations, CTF teams, and interesting security problems. Feel free to reach out:</p>
+  <ul>
+    {
+      socials.map(([k, v]) => (
+        <li>
+          {k}: <a href={k === 'email' ? `mailto:${v}` : v}>{v}</a>
+        </li>
+      ))
+    }
+  </ul>
+</Base>
+
+<style>
+  th {
+    text-transform: capitalize;
+    white-space: nowrap;
+  }
+</style>

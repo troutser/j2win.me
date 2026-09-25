@@ -1,0 +1,32 @@
+export async function copyText(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    // Fallback for non-secure contexts
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand('copy');
+    ta.remove();
+    return ok;
+  }
+}
+
+export function flash(btn: HTMLElement, label: string, ms = 1400) {
+  const prev = btn.dataset.label ?? btn.innerHTML;
+  btn.dataset.label = prev;
+  btn.innerHTML = label;
+  btn.classList.add('ok');
+  clearTimeout(Number(btn.dataset.timer));
+  btn.dataset.timer = String(
+    setTimeout(() => {
+      btn.innerHTML = prev;
+      btn.classList.remove('ok');
+      delete btn.dataset.label;
+    }, ms),
+  );
+}

@@ -1,0 +1,163 @@
+---
+import type { MarkdownHeading } from 'astro';
+import Base from './Base.astro';
+
+interface Props {
+  title: string;
+  description: string;
+  date: Date;
+  updated?: Date;
+  tags: string[];
+  difficulty?: 'beginner' | 'intermediate' | 'advanced';
+  requirements: string[];
+  readingTime: number;
+  headings: MarkdownHeading[];
+  prev?: { title: string; url: string };
+  next?: { title: string; url: string };
+}
+
+const { title, description, date, updated, tags, difficulty, requirements, readingTime, headings, prev, next } =
+  Astro.props;
+const toc = headings.filter((h) => h.depth === 2 || h.depth === 3);
+const fmt = (d: Date) => d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+---
+
+<Base title={title} description={description} type="article">
+  <p class="small"><a href={`${base}/blog/`}>&laquo; Back to blog</a></p>
+  <h1>{title}</h1>
+  <p class="small muted">
+    Posted {fmt(date)}
+    {updated && <> &middot; updated {fmt(updated)}</>}
+    &middot; {readingTime} min read
+    {difficulty && <> &middot; difficulty: {difficulty}</>}
+    {
+      tags.length > 0 && (
+        <>
+          <br />
+          Tags:{' '}
+          {tags.map((t, i) => (
+            <>
+              {i > 0 && ', '}
+              <a href={`${base}/blog/?tag=${encodeURIComponent(t)}`}>{t}</a>
+            </>
+          ))}
+        </>
+      )
+    }
+  </p>
+  <p><i>{description}</i></p>
+
+  {
+    requirements.length > 0 && (
+      <div class="box">
+        <b>Before you start, you'll need:</b>
+        <ul>
+          {requirements.map((r) => (
+            <li>{r}</li>
+          ))}
+        </ul>
+      </div>
+    )
+  }
+
+  {
+    toc.length > 1 && (
+      <div class="box">
+        <b>Contents</b>
+        <ul>
+          {toc.map((h) => (
+            <li class={`d${h.depth}`}>
+              <a href={`#${h.slug}`}>{h.text}</a>
+            </li>
+          ))}
+        </ul>
+      </div>
+    )
+  }
+
+  <hr />
+  <article class="prose">
+    <slot />
+  </article>
+  <hr />
+
+  <p class="small">
+    {prev && <>&laquo; Previous: <a href={prev.url}>{prev.title}</a></>}
+    {prev && next && <br />}
+    {next && <>Next: <a href={next.url}>{next.title}</a> &raquo;</>}
+  </p>
+</Base>
+
+<style>
+  .box {
+    margin: 1em 0;
+    padding: 6px 12px;
+    border: 1px solid var(--border);
+    background: #f5f5f5;
+    font-size: 0.93em;
+  }
+  .box ul {
+    margin: 4px 0;
+  }
+  .box li.d3 {
+    margin-left: 1.5em;
+  }
+
+  .prose :global(:not(pre) > code) {
+    padding: 0 3px;
+    background: var(--light);
+    font-size: 0.95em;
+  }
+  .prose :global(blockquote) {
+    margin: 1em 0;
+    padding: 0 12px;
+    border-left: 3px solid var(--border);
+    color: #333333;
+  }
+  .prose :global(table) {
+    margin: 1em 0;
+  }
+  .prose :global(kbd) {
+    padding: 0 4px;
+    border: 1px solid #777777;
+    background: #f0f0f0;
+    font-size: 0.9em;
+  }
+  .prose :global(pre.astro-code) {
+    margin: 0;
+    padding: 8px 10px;
+    background: #f8f8f8 !important;
+    font-size: 13px;
+    line-height: 1.4;
+    overflow-x: auto;
+  }
+  .prose :global(pre.astro-code:not(.codeblock pre)) {
+    border: 1px solid var(--border);
+  }
+  .prose :global(.codeblock) {
+    margin: 1.2em 0;
+  }
+</style>
+
+<script>
+  import { copyText, flash } from '../scripts/clipboard';
+
+  // Wrap markdown code fences in a box with a filename/language label + copy button.
+  document.querySelectorAll<HTMLPreElement>('.prose pre.astro-code').forEach((pre) => {
+    if (pre.closest('.codeblock')) return;
+    const lang = pre.dataset.language ?? 'text';
+    const title = pre.dataset.title;
+    const fig = document.createElement('figure');
+    fig.className = 'win codeblock';
+    const bar = document.createElement('div');
+    bar.className = 'win-bar';
+    bar.innerHTML = `<span class="win-title"></span><span class="win-actions"><button type="button" class="icon-btn">copy</button></span>`;
+    bar.querySelector('.win-title')!.textContent = title ?? lang;
+    pre.replaceWith(fig);
+    fig.append(bar, pre);
+    bar.querySelector('button')!.addEventListener('click', async (e) => {
+      if (await copyText(pre.innerText.replace(/\n$/, ''))) flash(e.currentTarget as HTMLElement, 'copied!');
+    });
+  });
+</script>

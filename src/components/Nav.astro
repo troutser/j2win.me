@@ -1,0 +1,56 @@
+---
+import { site } from '../site.config';
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const links = [
+  { href: `${base}/`, label: 'Home' },
+  { href: `${base}/#about`, label: 'About' },
+  { href: `${base}/#projects`, label: 'Projects' },
+  { href: `${base}/blog/`, label: 'Blog' },
+  { href: `${base}/#contact`, label: 'Contact' },
+];
+---
+
+<header>
+  <div class="banner">
+    <a href={`${base}/`}>{site.name}</a>
+    <div class="tagline">{site.roles.join(' · ')}</div>
+  </div>
+  <nav class="navbar">
+    {
+      links.map((l, i) => (
+        <>
+          {i > 0 && ' | '}
+          <a href={l.href}>{l.label}</a>
+        </>
+      ))
+    }
+  </nav>
+</header>
+
+<style>
+  .banner {
+    padding: 14px 20px;
+    background: var(--header);
+    color: #ffffff;
+  }
+  .banner a {
+    color: #ffffff;
+    font-family: var(--serif);
+    font-size: 26px;
+    font-weight: bold;
+    text-decoration: none;
+  }
+  .tagline {
+    font-size: 12px;
+    color: #ccddee;
+  }
+  .navbar {
+    padding: 4px 20px;
+    background: #dddddd;
+    border-top: 1px solid #ffffff;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+    font-weight: bold;
+  }
+</style>

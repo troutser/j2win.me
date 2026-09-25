@@ -1,0 +1,27 @@
+---
+import { site } from '../site.config';
+const now = new Date();
+const year = now.getFullYear();
+const updated = now.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+---
+
+<footer>
+  <hr />
+  <p>
+    &copy; {year} {site.name} &middot; <a href={`${base}/rss.xml`}>RSS feed</a><br />
+    Last updated: {updated}
+  </p>
+</footer>
+
+<style>
+  footer {
+    padding: 0 20px 12px;
+    text-align: center;
+    font-size: 11px;
+    color: var(--muted);
+  }
+  hr {
+    margin: 0 0 10px;
+  }
+</style>

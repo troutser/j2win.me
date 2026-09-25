@@ -1,0 +1,319 @@
+---
+/**
+ * Editable, runnable code cell for blog posts.
+ *
+ * <Runner lang="python" title="xor.py" code={`print("hello")`} />
+ *
+ * lang: "js" | "javascript" | "python" | "py"
+ * JS runs in a sandboxed Web Worker (console.log shows in the output pane).
+ * Python runs via Pyodide (WebAssembly); all Python cells on a page share state.
+ */
+import { highlight, type Lang } from '../../scripts/runner';
+
+interface Props {
+  code: string;
+  lang?: 'js' | 'javascript' | 'python' | 'py';
+  title?: string;
+  /** Auto-run once when the cell scrolls into view */
+  autorun?: boolean;
+}
+
+const { code: rawCode, lang: rawLang = 'js', title, autorun = false } = Astro.props;
+const lang: Lang = rawLang === 'python' || rawLang === 'py' ? 'python' : 'js';
+const code = rawCode.replace(/^\n+|\s+$/g, '');
+const label = lang === 'python' ? 'python' : 'javascript';
+const lines = code.split('\n').length;
+---
+
+<figure class="win runner" data-runner data-lang={lang} data-autorun={autorun ? '' : undefined}>
+  <div class="win-bar">
+    <span class="win-title">{title ?? `scratch.${lang === 'python' ? 'py' : 'js'}`}</span>
+    <span class="lang">{label}</span>
+    <span class="win-actions">
+      <button class="icon-btn" data-reset type="button" title="Reset to original code">reset</button>
+      <button class="icon-btn" data-copy type="button" title="Copy code">copy</button>
+      <button class="icon-btn run" data-run type="button" title="Run (Ctrl/⌘ + Enter)">Run</button>
+    </span>
+  </div>
+  <div class="editor">
+    <div class="gutter" aria-hidden="true">{Array.from({ length: lines }, (_, i) => <span>{i + 1}</span>)}</div>
+    <div class="code-wrap">
+      <pre class="hl" aria-hidden="true" set:html={highlight(code, lang)} />
+      <textarea
+        spellcheck="false"
+        autocapitalize="off"
+        autocomplete="off"
+        autocorrect="off"
+        wrap="off"
+        rows={lines}
+        aria-label={`Editable ${label} code. Press Ctrl+Enter to run, Escape to leave the editor.`}
+        data-original={code}>{code}</textarea
+      >
+    </div>
+  </div>
+  <div class="console" data-console hidden>
+    <div class="console-bar">
+      <span>output</span>
+      <span class="console-meta" data-meta></span>
+      <button class="icon-btn" data-clear type="button">clear</button>
+    </div>
+    <div class="console-body" data-out role="log" aria-live="polite"></div>
+  </div>
+</figure>
+
+<style>
+  .lang {
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .run {
+    font-weight: bold;
+  }
+  .editor {
+    display: flex;
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.4;
+    background: #fdfdfd;
+  }
+  .gutter {
+    display: flex;
+    flex-direction: column;
+    padding: 8px 6px;
+    color: #999999;
+    text-align: right;
+    user-select: none;
+    border-right: 1px solid var(--border);
+    background: var(--light);
+    min-width: 36px;
+  }
+  .code-wrap {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+  }
+  .hl,
+  textarea {
+    margin: 0;
+    padding: 8px 10px;
+    font: inherit;
+    line-height: inherit;
+    tab-size: 4;
+    white-space: pre;
+    letter-spacing: normal;
+    word-spacing: normal;
+  }
+  .hl {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    color: #000000;
+    background: none;
+    border: 0;
+  }
+  textarea {
+    display: block;
+    position: relative;
+    width: 100%;
+    min-height: 100%;
+    border: 0;
+    outline: none;
+    resize: none;
+    overflow-x: auto;
+    overflow-y: hidden;
+    background: transparent;
+    color: transparent;
+    caret-color: #000000;
+  }
+  textarea::selection {
+    background: rgba(0, 0, 204, 0.2);
+    color: transparent;
+  }
+  .runner :global(.hl-c) {
+    color: #008000;
+    font-style: italic;
+  }
+  .runner :global(.hl-s) {
+    color: #a31515;
+  }
+  .runner :global(.hl-k) {
+    color: #0000ff;
+  }
+  .runner :global(.hl-l) {
+    color: #0000ff;
+  }
+  .runner :global(.hl-n) {
+    color: #098658;
+  }
+  .runner :global(.hl-f) {
+    color: #795e26;
+  }
+  .runner :global(.hl-d) {
+    color: #af00db;
+  }
+  .console {
+    border-top: 1px solid var(--border);
+  }
+  .console-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 2px 6px;
+    background: var(--light);
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+    font-weight: bold;
+  }
+  .console-meta {
+    flex: 1;
+    font-weight: normal;
+    color: var(--muted);
+  }
+  .console-body {
+    max-height: 320px;
+    overflow: auto;
+    padding: 6px 10px;
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.4;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .console-body :global(.o-info) {
+    color: var(--info);
+  }
+  .console-body :global(.o-warn) {
+    color: var(--warn);
+  }
+  .console-body :global(.o-error) {
+    color: var(--bad);
+  }
+  .console-body :global(.o-status),
+  .console-body :global(.o-empty) {
+    color: var(--muted);
+    font-style: italic;
+  }
+  @media (max-width: 600px) {
+    .gutter {
+      display: none;
+    }
+  }
+</style>
+
+<script>
+  import { run, highlight, type Lang, type Msg } from '../../scripts/runner';
+  import { copyText, flash } from '../../scripts/clipboard';
+
+  for (const el of document.querySelectorAll<HTMLElement>('[data-runner]')) {
+    const lang = el.dataset.lang as Lang;
+    const ta = el.querySelector('textarea')!;
+    const hl = el.querySelector<HTMLElement>('.hl')!;
+    const gutter = el.querySelector<HTMLElement>('.gutter')!;
+    const consoleEl = el.querySelector<HTMLElement>('[data-console]')!;
+    const out = el.querySelector<HTMLElement>('[data-out]')!;
+    const meta = el.querySelector<HTMLElement>('[data-meta]')!;
+    const runBtn = el.querySelector<HTMLButtonElement>('[data-run]')!;
+    const original = ta.dataset.original ?? ta.value;
+    let statusLine: HTMLElement | null = null;
+
+    const sync = () => {
+      hl.innerHTML = highlight(ta.value, lang);
+      const n = ta.value.split('\n').length;
+      if (gutter.childElementCount !== n)
+        gutter.innerHTML = Array.from({ length: n }, (_, i) => `<span>${i + 1}</span>`).join('');
+      ta.rows = n;
+    };
+    ta.addEventListener('input', sync);
+    ta.addEventListener('scroll', () => {
+      hl.scrollLeft = ta.scrollLeft;
+    });
+
+    ta.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        execute();
+      } else if (e.key === 'Tab' && !e.shiftKey) {
+        e.preventDefault();
+        const indent = lang === 'python' ? '    ' : '  ';
+        ta.setRangeText(indent, ta.selectionStart, ta.selectionEnd, 'end');
+        sync();
+      } else if (e.key === 'Escape') {
+        ta.blur();
+      } else if (e.key === 'Enter') {
+        // keep indentation of the current line
+        const before = ta.value.slice(0, ta.selectionStart);
+        const cur = before.slice(before.lastIndexOf('\n') + 1);
+        let indent = cur.match(/^\s*/)![0];
+        if (/[:{[(]\s*$/.test(cur)) indent += lang === 'python' ? '    ' : '  ';
+        e.preventDefault();
+        ta.setRangeText('\n' + indent, ta.selectionStart, ta.selectionEnd, 'end');
+        sync();
+      }
+    });
+
+    const write = (m: Msg) => {
+      if (m.type === 'status') {
+        if (!m.text) {
+          statusLine?.remove();
+          statusLine = null;
+          return;
+        }
+        statusLine ??= out.appendChild(document.createElement('div'));
+        statusLine.className = 'o-status';
+        statusLine.textContent = m.text;
+        return;
+      }
+      const d = document.createElement('div');
+      d.className = `o-${m.type}`;
+      d.textContent = m.text;
+      out.appendChild(d);
+      out.scrollTop = out.scrollHeight;
+    };
+
+    async function execute() {
+      if (runBtn.disabled) return;
+      runBtn.disabled = true;
+      runBtn.textContent = 'running...';
+      consoleEl.hidden = false;
+      out.innerHTML = '';
+      meta.textContent = '';
+      statusLine = null;
+      const t0 = performance.now();
+      let produced = false;
+      await run(lang, ta.value, (m) => {
+        if (m.type !== 'status') produced = true;
+        write(m);
+      });
+      statusLine?.remove();
+      if (!produced) out.innerHTML = '<div class="o-empty">(no output)</div>';
+      meta.textContent = `finished in ${Math.round(performance.now() - t0)} ms`;
+      runBtn.disabled = false;
+      runBtn.textContent = 'Run';
+    }
+
+    runBtn.addEventListener('click', execute);
+    el.querySelector('[data-reset]')!.addEventListener('click', () => {
+      ta.value = original;
+      sync();
+    });
+    el.querySelector('[data-copy]')!.addEventListener('click', async (e) => {
+      if (await copyText(ta.value)) flash(e.currentTarget as HTMLElement, 'copied!');
+    });
+    el.querySelector('[data-clear]')!.addEventListener('click', () => {
+      out.innerHTML = '';
+      meta.textContent = '';
+    });
+
+    if (el.hasAttribute('data-autorun')) {
+      const io = new IntersectionObserver(([entry]) => {
+        if (entry.isIntersecting) {
+          io.disconnect();
+          execute();
+        }
+      });
+      io.observe(el);
+    }
+  }
+</script>

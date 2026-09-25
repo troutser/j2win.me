@@ -1,0 +1,25 @@
+---
+import type { Project } from '../data/projects';
+
+interface Props {
+  project: Project;
+}
+const { project: p } = Astro.props;
+const href = p.url || p.repo;
+---
+
+<li class="project">
+  <b>{href ? <a href={href}>{p.name}</a> : p.name}</b>
+  {p.status && <span class="small muted">[{p.status}]</span>}
+  <br />
+  {p.description}
+  <br />
+  <span class="small muted">Built with: {p.tags.join(', ')}</span>
+  {p.repo && p.url && <span class="small"> &middot; <a href={p.repo}>source</a></span>}
+</li>
+
+<style>
+  .project {
+    margin-bottom: 10px;
+  }
+</style>

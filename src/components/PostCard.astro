@@ -1,0 +1,24 @@
+---
+import type { CollectionEntry } from 'astro:content';
+
+interface Props {
+  post: CollectionEntry<'blog'>;
+}
+const { post } = Astro.props;
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const date = post.data.date.toISOString().slice(0, 10);
+---
+
+<li class="post-item" data-tags={post.data.tags.join(',')}>
+  <span class="muted mono">{date}</span> &mdash; <a href={`${base}/blog/${post.id}/`}><b>{post.data.title}</b></a>
+  {post.data.difficulty && <span class="small muted">[{post.data.difficulty}]</span>}
+  <br />
+  {post.data.description}
+  {post.data.tags.length > 0 && <span class="small muted">(tags: {post.data.tags.join(', ')})</span>}
+</li>
+
+<style>
+  .post-item {
+    margin-bottom: 10px;
+  }
+</style>

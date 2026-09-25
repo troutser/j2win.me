@@ -1,0 +1,277 @@
+---
+title: 'Building jwt-autopsy and portscout'
+description: 'Two small security tools built to learn how the real ones work: an async TCP port scanner in Python and a JWT toolkit in Go.'
+date: 2026-09-25
+tags: ['tooling', 'python', 'go', 'networking', 'web security']
+difficulty: beginner
+requirements: ['Python 3.11+ (for portscout)', 'Go 1.22+ (for jwt-autopsy)']
+---
+
+Using a tool is not the same as understanding it. These two projects reimplement a fraction of what nmap and a JWT security toolkit do, in code short enough to read in one sitting:
+
+- **[portscout](https://github.com/troutser/portscout)**: an async TCP port scanner in Python, written to show how nmap decides a port is open, closed, or filtered.
+- **[jwt-autopsy](https://github.com/troutser/jwt-autopsy)**: a Go CLI that decodes JSON Web Tokens, explains risky configurations, and can test for the weaknesses it describes.
+
+Neither replaces the production tool. Both are written to be read.
+
+<Callout type="warning" title="legal">
+  These tools are for hosts and tokens covered by **explicit authorization**. A JWT is often a live credential. Every
+  example below runs against `127.0.0.1` or tokens generated for the demonstration.
+</Callout>
+
+## portscout
+
+### Open, closed, filtered
+
+A TCP connection begins with a three-way handshake. A port scanner sends the first packet and classifies the port by what returns:
+
+```text title="the handshake"
+scanner --SYN-->      target   "can I connect to port 80?"
+scanner <--SYN/ACK--  target   "yes, port 80 is listening"      (open)
+        <--RST--               "no, nothing here"               (closed)
+        (silence)                                               (filtered)
+```
+
+portscout performs a **connect scan** (nmap's `-sT`): it asks the OS to `connect()` normally and observes the outcome. This needs no raw sockets and no root, and because the scan ends with a real connection, a banner can be read from it. The cost is noise: every open port requires a full handshake, which the target service typically logs. nmap's default when run as root is a **SYN scan** (`-sS`), which sends the SYN directly and never completes the handshake — faster and quieter, but dependent on raw sockets.
+
+In Python, the three outcomes map almost directly onto exceptions:
+
+```python title="src/portscout/scanner.py"
+try:
+    # open_connection() performs the full handshake. If it returns, the
+    # port accepted our connection.
+    reader, writer = await asyncio.wait_for(asyncio.open_connection(target.ip, port), timeout)
+except ConnectionRefusedError:
+    # The target's TCP stack replied with RST: host reachable, port closed.
+    return result(PortState.CLOSED, elapsed_ms())
+except TimeoutError:
+    # Silence. Our SYN (or their SYN/ACK) was dropped somewhere.
+    return result(PortState.FILTERED)
+except OSError:
+    # e.g. "host/network unreachable": usually an ICMP error from a router
+    # or firewall. nmap also reports these as filtered.
+    return result(PortState.FILTERED)
+```
+
+A **closed** port is informative to a scanner, because the RST proves the host is up. **Filtered** means nothing returned, usually because a firewall dropped the packet deliberately, leaving the scanner with no signal.
+
+<Callout type="note" title="Windows behaviour">
+  When a connection is refused, Windows retries the SYN twice before giving up, so even on `127.0.0.1` a closed port
+  takes about 2 seconds to report. Linux answers in under a millisecond. This is why portscout's default timeout is 3s:
+  at `-t 1` on Windows, closed ports are misreported as filtered.
+</Callout>
+
+### Running it
+
+<Terminal
+  user="jeremy"
+  host="devbox"
+  path="~/portscout"
+  code={`
+$ python -m venv .venv && source .venv/bin/activate
+$ pip install -e ".[dev]"
+$ portscout 127.0.0.1 --top 20 --banners
+Scanning 1 host(s), 20 port(s) each (20 probes, concurrency 500, timeout 3.0s)
+
+Scan report for 127.0.0.1
+Not shown: 18 closed ports
+    PORT | STATE | SERVICE      | LATENCY | BANNER
+---------+-------+--------------+---------+--------
+ 135/tcp | open  | msrpc        |  3.5 ms |
+ 445/tcp | open  | microsoft-ds |  4.8 ms |
+
+Done: 20 probes in 3.04s, 2 open port(s).
+`}
+/>
+
+This run was on a Windows host, so the two open ports are the RPC endpoint mapper and SMB; results differ by machine. `--json out.json` saves every result, and `-p 1-1024` selects ports explicitly.
+
+### Why asyncio fits
+
+A scan spends nearly all its time waiting for packets. With asyncio, a single thread starts hundreds of connects and the event loop resumes each one when its socket becomes ready. The one addition required is a limit, because every connection holds a socket, and too many at once exhaust OS limits or resemble a flood. portscout uses a semaphore, acquired **before** each task is created, so even a large CIDR scan holds no more than `-c` tasks in memory.
+
+The pattern is reproduced below. This cell simulates the network with `asyncio.sleep` (nothing leaves the browser); adjusting `CONCURRENCY` changes the total time:
+
+<Runner
+  lang="python"
+  title="semaphore_scan.py"
+  code={`
+import asyncio, random, time
+
+CONCURRENCY = 5
+PORTS = list(range(20, 40))
+random.seed(1337)
+
+async def fake_connect(port):
+    # pretend each handshake takes 50-300 ms; a few ports are "open"
+    await asyncio.sleep(random.uniform(0.05, 0.3))
+    return "open" if port in (22, 25, 31) else "closed"
+
+async def scan(ports, concurrency):
+    sem = asyncio.Semaphore(concurrency)
+    results, tasks = {}, []
+
+    async def worker(port):
+        try:
+            results[port] = await fake_connect(port)
+        finally:
+            sem.release()
+
+    for port in ports:
+        await sem.acquire()          # backpressure: wait for a free slot first
+        tasks.append(asyncio.create_task(worker(port)))
+    await asyncio.gather(*tasks)
+    return results
+
+t0 = time.perf_counter()
+res = await scan(PORTS, CONCURRENCY)
+dt = time.perf_counter() - t0
+print(f"{len(PORTS)} probes, concurrency {CONCURRENCY}: {dt:.2f}s")
+for port, state in sorted(res.items()):
+    if state == "open":
+        print(f"[+] {port}/tcp open")
+`}
+/>
+
+At `CONCURRENCY = 1` the scan is sequential. At 20 all probes run at once, and the total time drops to roughly the duration of the slowest single probe.
+
+## jwt-autopsy
+
+### Base64 is not encryption
+
+A signed JWT is three base64url segments joined by dots: **header**, **payload**, and **signature**. The first two are plain JSON, readable by anyone holding the token. The signature is the only element that establishes trust, and it does so only when the verifier selects the algorithm and key itself rather than trusting the header.
+
+The cell below decodes a token and applies a few of jwt-autopsy's checks. The token can be replaced with an authorized one, or its header edited:
+
+<Runner
+  lang="js"
+  title="mini_autopsy.js"
+  code={`
+const token =
+  'eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.' +
+  'eyJzdWIiOiJhbGljZSIsInJvbGUiOiJhZG1pbiIsImlhdCI6MTc1ODgwMDAwMH0.';
+
+const b64url = (s) => atob(s.replace(/-/g, '+').replace(/_/g, '/'));
+const [h, p, sig] = token.split('.');
+const header = JSON.parse(b64url(h));
+const payload = JSON.parse(b64url(p));
+
+console.log('header: ', header);
+console.log('payload:', payload);
+
+const findings = [];
+if (/^none$/i.test(header.alg ?? ''))
+  findings.push(['CRITICAL', 'ALG_NONE', 'unsigned token; the signature is not checked']);
+else if (!sig)
+  findings.push(['CRITICAL', 'SIGNATURE_EMPTY', 'alg is ' + header.alg + ' but there is no signature']);
+if (!('exp' in payload)) findings.push(['WARN', 'MISSING_EXP', 'token never expires']);
+for (const c of ['aud', 'iss'])
+  if (!(c in payload)) findings.push(['INFO', 'MISSING_' + c.toUpperCase(), 'no "' + c + '" claim']);
+
+for (const [sev, code, msg] of findings) console.log('[' + sev + '] ' + code + ': ' + msg);
+`}
+/>
+
+### The commands
+
+jwt-autopsy has five subcommands: `decode` pretty-prints the token, `inspect` reports risky configurations, `verify` checks the signature against a supplied key, `crack` tests an HMAC token against a wordlist, and `fuzz` emits tampered variants for exercising a verifier. It uses only the Go standard library, so each check occupies a few lines of `crypto/*` and `encoding/*`.
+
+`inspect` on the unsigned token above:
+
+<Terminal
+  user="jeremy"
+  host="devbox"
+  path="~/jwt-autopsy"
+  code={`
+$ ./bin/jwt-autopsy inspect eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiJhbGljZSIsInJvbGUiOiJhZG1pbiIsImlhdCI6MTc1ODgwMDAwMH0.
+Algorithm:  none (no signature)
+Type:       JWT
+Signature:  0 bytes
+
+Findings (4):
+
+  [CRITICAL] ALG_NONE: Unsigned token (alg: none)
+      The token carries no signature, so anyone can forge or modify it. A
+      verifier must never accept "none" for authenticated requests; always
+      pin an allow-list of expected algorithms.
+
+  [WARN] MISSING_EXP: No "exp" claim: token never expires
+      A stolen token remains usable forever unless the server tracks
+      revocation. Short-lived tokens limit the damage of leaks.
+
+  [INFO] MISSING_AUD: No "aud" claim
+      Without an audience, a token minted for one service may be accepted by
+      another service that trusts the same issuer/key.
+
+  [INFO] MISSING_ISS: No "iss" claim
+      Without an issuer, verifiers cannot tell which authority minted the
+      token, which matters when several issuers share infrastructure.
+
+These are educational observations, not proof of a vulnerability. See README.md for each code.
+`}
+/>
+
+There are 27 checks in total. Alongside the claim checks are a `kid` containing `../` or quotes (path traversal or SQL injection if the server trusts it), `jku`/`x5u` headers pointing at a remote key, an embedded `jwk`, RSA signatures implying a key under 2048 bits, and timestamps expressed in milliseconds instead of seconds. The last is a common bug: it pushes `exp` past the year 3000, so the token effectively never expires.
+
+`verify` against the well-known example token from jwt.io:
+
+<Terminal
+  user="jeremy"
+  host="devbox"
+  path="~/jwt-autopsy"
+  code={`
+$ echo -n 'your-256-bit-secret' > secret.txt
+$ ./bin/jwt-autopsy verify eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c --secret-file secret.txt
+[!] warning: secret is 19 bytes; HS256 secrets should be at least 32 random bytes (RFC 7518 §3.2)
+Algorithm: HS256
+Signature: VALID
+`}
+/>
+
+The signature is valid, and the tool notes that a 19-byte secret is below the recommended length. HMAC is symmetric: any party that can verify a token can also mint one, so the strength of the secret is the whole security of the scheme.
+
+<Callout type="note">
+  The `[!]` prefix is added here so the terminal colours the warning; the tool prints `warning: ...` to stderr.
+</Callout>
+
+### Weak secrets
+
+`inspect` describes the risk of a weak HMAC secret; `crack` measures it. Given an `HS*` token and a wordlist, it tests each candidate as the secret and reports the first that produces a valid signature. A match means the secret is guessable and can be recovered offline from a single captured token, after which valid tokens can be minted at will. The check runs entirely locally, and is only meaningful on tokens covered by authorization.
+
+<Terminal
+  user="jeremy"
+  host="devbox"
+  path="~/jwt-autopsy"
+  code={`
+$ ./bin/jwt-autopsy crack eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c --wordlist words.txt
+NOTICE: Use jwt-autopsy only on tokens you own or are explicitly authorized to test.
+WEAK SECRET FOUND after 3 candidate(s): "your-256-bit-secret"
+This HS256 token was signed with a guessable secret; anyone who recovers it can mint valid tokens. Rotate to a long random secret (RFC 7518 §3.2).
+`}
+/>
+
+The defensive lesson is direct: an HMAC secret should be long and random. Only asymmetric tokens (`RS*`, `ES*`, `EdDSA`) resist this class of test, because they rely on a private key rather than a shared secret.
+
+### Algorithm confusion
+
+`verify` refuses to use a key for any algorithm other than the one it belongs to. This is the most important design choice in the tool, because it blocks a well-documented mistake:
+
+1. The server signs tokens with **RS256**, holding an RSA private key and publishing the public key.
+2. The header is changed to `alg: HS256` and the token is HMAC-signed using the **public key bytes** as the secret — possible for anyone, since the key is public.
+3. A verifier that reads `alg` from the header and runs HMAC with the only key it holds, the RSA public key, computes a matching signature and accepts the forged token.
+
+`fuzz` can emit exactly this variant (`--public-key`), along with `alg:none` and empty-signature variants, so a verifier can be tested against each mistake in a controlled setting. It only writes tokens to stdout; delivering them anywhere is a separate step that must remain within authorized scope.
+
+<Spoiler label="how is it fixed?">
+  Bind every key to one algorithm, and never let the token choose. jwt-autopsy refuses to use a PEM public key for
+  `HS*`, or a secret for `RS*`/`ES*`/`EdDSA`, and reports `key type does not match algorithm` instead of attempting the
+  verification. A JWT library should be configured the same way, with an explicit allow-list of algorithms.
+</Spoiler>
+
+## Takeaways
+
+- **Reimplementing a tool is an efficient way to learn the original.** After portscout, nmap's `filtered` state and its `-sT`/`-sS` flags are legible rather than opaque.
+- **Explanation matters as much as detection.** Each jwt-autopsy finding states why it matters and what a correct verifier does. A finding is an observation about the token; whether it is exploitable depends on the receiving service.
+- **Tests should not touch the network.** portscout's tests start local asyncio servers (an echo server, a fake SSH greeting, a fake HTTP server) and scan those. jwt-autopsy's tests mint their own signed tokens with a test-only helper.
+
+Both repositories are on GitHub: [portscout](https://github.com/troutser/portscout) and [jwt-autopsy](https://github.com/troutser/jwt-autopsy). The READMEs go further, and jwt-autopsy's includes a reference table for every finding code.

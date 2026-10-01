@@ -1,0 +1,352 @@
+---
+title: 'CyLab Security Academy - "New Caesar" writeup'
+description: 'My thought process for solving this crypto challenge.'
+date: 2026-10-01
+tags: ['python', 'crypto', 'write-up', 'ctf']
+difficulty: beginner
+---
+
+> *"Et tu, Brute?"*
+> — **William Shakespeare,** ***Julius Caesar***
+
+<Callout title="New Caesar">
+We found a brand new type of encryption, can you break the secret code? (Wrap with academy{}) cbdabldadbplblcnpfpnpapapecpcn
+</Callout>
+
+```python title="new_caesar.py"
+import string
+
+LOWERCASE_OFFSET = ord("a")
+ALPHABET = string.ascii_lowercase[:16]
+
+def b16_encode(plain):
+	enc = ""
+	for c in plain:
+		binary = "{0:08b}".format(ord(c))
+		enc += ALPHABET[int(binary[:4], 2)]
+		enc += ALPHABET[int(binary[4:], 2)]
+	return enc
+
+def shift(c, k):
+	t1 = ord(c) - LOWERCASE_OFFSET
+	t2 = ord(k) - LOWERCASE_OFFSET
+	return ALPHABET[(t1 + t2) % len(ALPHABET)]
+
+flag = "redacted"
+key = "redacted"
+assert all([k in ALPHABET for k in key])
+assert len(key) == 1
+
+b16 = b16_encode(flag)
+enc = ""
+for i, c in enumerate(b16):
+	enc += shift(c, key[i % len(key)])
+print(enc)
+```
+
+# My Approach
+## Initial observations
+Before looking at even the code, I first attempted to run new_caesar.py, resulting in
+```python title="error"
+Traceback (most recent call last):
+  File "C:\Users\jerem\Downloads\new_caesar.py", line 21, in <module>
+    assert all([k in ALPHABET for k in key])
+           ~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError
+```
+I then noticed that line 21 and 22 were constraints on a variable called ```key```:
+```python
+assert all([k in ALPHABET for k in key])
+assert len(key)=1
+```
+It is trivial to see that ```key``` is used to encrypt the flag, so any constraints on it points to the solution being bruteforce. For those who don't know, ```assert``` errors if the next statement is false. The breakdown goes like this:
+
+```all([...])``` returns true if and only if all elements in the list are true (or truthy).
+```[k in ALPHABET for k in key]``` goes through all characters of ```key``` and checks if they're in the string ```ALPHABET```.
+Thus, ```assert all([k in ALPHABET for k in key])``` ensures that every character in ```key``` is in ```ALPHABET```.
+
+Additionally, ```len(key)==1``` ensures ```key``` is only 1 character long. The script only works if all assertions pass, therefore, the correct key must be a single letter from ```ALPHABET```!
+Examining ```ALPHABET```, we can see it's equal to the first 16 letters of the alphabet in lowercase.
+```python
+ALPHABET = string.ascii_lowercase[:16]
+```
+This cuts down the amount of possible keys to just 16 possiblilities, making bruteforce a viable solution!
+
+<Callout title="tl;dr">
+Through some basic analysis, I've decided the way to solve this challenge was to bruteforce it.
+</Callout>
+## Analyzing The Encryption
+```python
+b16 = b16_encode(flag)
+enc = ""
+for i, c in enumerate(b16):
+	enc += shift(c, key[i % len(key)])
+print(enc)
+```
+This part encrypts the flag by calling ```b16_encode``` on the plaintext flag and then calling ```shift``` on every character resultant from ```b16_encode(flag)```. 
+Let's see what ```b16_encode``` does first.
+
+```python
+def b16_encode(plain):
+	enc = ""
+	for c in plain:
+		binary = "{0:08b}".format(ord(c))
+		enc += ALPHABET[int(binary[:4], 2)]
+		enc += ALPHABET[int(binary[4:], 2)]
+	return enc
+```
+I'm noticing that b16_encode seems to be the first layer of encryption. It takes every character in the flag,
+```python
+for c in plain:
+```
+
+converts it to its binary form (formatted as 8 digits long with leading zeros),
+
+```python
+binary = "{0:08b}".format(ord(c))
+```
+
+ and splits it into the first 4 bits and the second 4 bits.
+ 
+```python
+binary[:4]
+binary[4:]
+```
+
+4 bits encodes 0 to 15 (2^4 = 16 possible combinations, and 0000 represents 0 so it starts at
+ 0), which matches the indexing of the 16 characters in ```ALPHABET```. Checks out since the function uses these the first and second 4 bits as 
+ indices (converting them to integers from a string first from base 2 via int()) to choose a character from ```ALPHABET``` and uses them to construct the encrypted text through simple appending
+
+```python
+enc += ALPHABET[int(binary[:4], 2)]
+enc += ALPHABET[int(binary[4:], 2)]
+```
+
+Immediately, I try to write a function to reverse this. 
+```python
+def b16_decode(enc):
+    plaintext = ""
+```
+First,
+get each pair of encrypted characters since the encoding function 
+builds the encrypted text by adding two characters for every one character.
+```python
+for i in range(0, len(enc), 2):
+    c1 = enc[i]
+    c2 = enc[i+1]
+```
+Second, get the index of the character in ```ALPHABET``` since those indices used to select the character 
+ were comprised of the bits of the original plaintext character of the flag.
+```python
+    i1 = ALPHABET.index(c1)
+    i2 = ALPHABET.index(c2)
+```
+Third, convert the indices into their binary forms to then put them back together as the original
+8 bit sequence representing the original plaintext character. Note that I'm ensuring each indice becomes
+a 4 bit long sequence with leading 0s.
+```python
+    b1 = "{0:04b}".format(i1)
+    b2 = "{0:04b}".format(i2)
+```
+Lastly, combine the two 4 bit sequences to get the original 8 bit sequence and 
+convert it back into the original character.
+```python
+    b3 = b1 + b2
+    c = chr(int(b3, 2))
+
+    plaintext+=c
+```
+The final function looks like:
+```python
+def b16_decode(enc):
+    plaintext=""
+    for i in range(0, len(enc), 2):
+        c1 = enc[i]
+        c2 = enc[i+1]
+        i1 = ALPHABET.index(c1)
+        i2 = ALPHABET.index(c2)
+        b1 = "{0:04b}".format(i1)
+        b2 = "{0:04b}".format(i2)
+        b3 = b1 + b2
+        c = chr(int(b3, 2))
+
+        plaintext+=c
+    
+    return plaintext
+```
+We can verify this works just by seeing if it can undo a test string encoded via ```b16_encode()```.
+```python
+print(b16_decode(b16_encode("test!"))) # output: test!
+```
+It works! Let's look at the second half of the encryption:
+```python
+for i, c in enumerate(b16):
+	enc += shift(c, key[i % len(key)])
+```
+This goes through all characters of the b16 encoded string and calls ```shift``` on the character 
+combined with a character from key chosen sequentially from the start that loops back around to 0 if
+it reaches an indice greater than the number of characters in key (1). Since the key length is 1,
+the second argument is always just the first letter of the key (that is, just key itself) meaning the statement simplifies to
+```python
+    enc += shift(c, key)
+```
+Let's examine shift now:
+```python
+def shift(c, k):
+	t1 = ord(c) - LOWERCASE_OFFSET
+	t2 = ord(k) - LOWERCASE_OFFSET
+	return ALPHABET[(t1 + t2) % len(ALPHABET)]
+```
+It appears to convert both c (the character from b16) and k (the key) into numbers and offsets
+them by ```LOWERCASE_OFFSET``` which is just
+```python
+LOWERCASE_OFFSET = ord("a")
+```
+meaning that "a" is the start in the sense that if the character was "a", t1/2 would be zero, and any other characters
+increase from there in alphabetical order (b=1, c=2, d=3, etc). It then adds these adjusted
+numbers representing each character and constrains them to the number of letters in ```ALPHABET``` (16)
+so they can be used as indices to choose the shifted character. 
+
+As k is always the same, the function simply shifts a character ```c``` by ```k``` times where characters
+can be mapped to numbers in the following fashion: a=0, b=1, c=2, d=3, etc. 
+
+We want to get original ```c``` given this shifted character as well as ```k```. 
+We can unshift just by subtracting by ```t2``` (modulo ```len(ALPHABET)```or 16) since the 
+shifted character was the addition of ```t1``` and ```t2``` (modulo ```len(ALPHABET)```or 16). 
+```python
+def unshift(c, k):
+    t1 = ord(c) - LOWERCASE_OFFSET
+    t2 = ord(k) - LOWERCASE_OFFSET
+	
+    return ALPHABET[(t1 - t2) % len(ALPHABET)]
+```
+
+Note that ```c``` is guaranteed to be a character from ```ALPHABET```, and this wouldn't work
+if that wasn't the case since multiple characters could then be mapped to the same indice
+if their ```t1```s were the same modulo ```len(ALPHABET)``` (or 16). Also note that we could've just
+used shift again instead of writing unshift since we don't actually need the original key ```k```: 
+we will just be bruteforcing all possible ```k``` and see which looks like the flag.
+
+<Callout title="tl;dr">
+I wrote functions to undo both stages of encryption.
+</Callout>
+
+## Putting It All Together
+
+Now that we have both the inverse Base16 decoder (`b16_decode`) and the inverse shift function (`unshift`), we can write a solver script. 
+
+The strat
+1. Iterate over every possible key character `k` in `ALPHABET` (16 possible keys total: `'a'` through `'p'`).
+2. For each key, unshift every character in the ciphertext `cbdabldadbplblcnpfpnpapapecpcn`.
+3. Pass the unshifted Base16 string into `b16_decode`.
+4. Print out the candidate plaintext for each key.
+
+This is the final script I ended up with.
+
+```python title="solve.py"
+import string
+
+LOWERCASE_OFFSET = ord("a")
+ALPHABET = string.ascii_lowercase[:16]
+
+cipher = "cbdabldadbplblcnpfpnpapapecpcn"
+
+def unshift(c, k):
+    t1 = ord(c) - LOWERCASE_OFFSET
+    t2 = ord(k) - LOWERCASE_OFFSET
+    return ALPHABET[(t1 - t2) % len(ALPHABET)]
+
+def b16_decode(enc):
+    plaintext = ""
+    for i in range(0, len(enc), 2):
+        c1 = enc[i]
+        c2 = enc[i + 1]
+        i1 = ALPHABET.index(c1)
+        i2 = ALPHABET.index(c2)
+        b1 = "{0:04b}".format(i1)
+        b2 = "{0:04b}".format(i2)
+        b3 = b1 + b2
+        c = chr(int(b3, 2))
+        plaintext += c
+    return plaintext
+
+for k in ALPHABET:
+    b16 = ""
+    for c in cipher:
+        b16 += unshift(c, k)
+    
+    decrypted = b16_decode(b16)
+    print(f"{k} | {decrypted}")
+    print("=======================================")
+```
+The output
+```
+a | !01ûýððô/-
+=======================================
+b | /
+/ ê
+äìïïã
+=======================================
+c | ùÙù
+       ÓÛÞÞÒ
+
+=======================================
+ÈèúÂÊÍÍÁüú
+=======================================
+e | íü×üý·×é±¹¼¼°ëé
+=======================================
+f | ÜëÆëì¦ÆØ ¨««¯ÚØ
+=======================================
+g | ËÚµÚÛµÇÇ
+=======================================
+h | ºÉ¤ÉÊ
+         ¤¶¸¶
+=======================================
+i | ©¸¸¹s¥}uxx|§¥
+=======================================
+j | §¨bldggk
+=======================================
+k | qQq[SVVZ
+
+=======================================
+l | v
+`
+@`rJBEEItr
+=======================================
+m | et_tu?_a91448ca
+=======================================
+n | TcNcd.NP( ##'RP
+=======================================
+o | CR=RS=OAO
+=======================================
+p | 2A,AB
+         ,>0>
+=======================================
+```
+
+Ruling any decryptions that are obviously not the flag, we are
+left with only one candidate: when k = m, the decrypted text is
+et_tu?_a91448ca. This matches the Caesar thematics, so its safe to assume
+this is the one. 
+
+... and submitting it as ```academy{et_tu?_a91448ca}``` shows green! This was a pretty basic but fun one.
+Hope you enjoyed reading my thought process!
+
+A bit of homework left to you: why, when the key was supposed to be d, did the key not print out?
+
+<Spoiler label="answer">
+When ```k = "d"```, the decoded ASCII characters happen to fall into the range of non-printable ASCII control characters:
+
+```\x00```–```\x1f``` include bytes like Form Feed (```\x0c```), Vertical Tab (```\x0b```), Carriage Return (```\x0d```), and Line Feed (```\x0a```).
+
+When printed to the console or rendered on a web page, these bytes clear screens, move the cursor down/up, or break lines without showing visible characters.
+
+To handle non-printable characters safely when printing candidate outputs, you can wrap outputs using Python's repr() or filter with string.printable:
+
+```print(f"{k} | {repr(decrypted)}")```
+</Spoiler>
+
+<Callout title="tl;dr">
+Combined both decryption functions and attempted all possible keys to sort out which decrypted text looks like
+the flag! and it worked :)
+</Callout>

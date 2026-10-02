@@ -21,18 +21,6 @@ const socials = Object.entries(site.socials).filter(([, v]) => v);
   {site.about.map((p) => <p>{p}</p>)}
   <p><b>Location:</b> {site.location}</p>
 
-  <h3>Skills</h3>
-  <table>
-    {
-      Object.entries(site.skills).map(([cat, items]) => (
-        <tr>
-          <th>{cat}</th>
-          <td>{items.join(', ')}</td>
-        </tr>
-      ))
-    }
-  </table>
-
   <h2 id="projects">Projects</h2>
   <ul>
     {projects.map((p) => <ProjectCard project={p} />)}

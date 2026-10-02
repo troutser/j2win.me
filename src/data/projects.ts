@@ -1,4 +1,3 @@
-// Replace these with your real projects.
 export interface Project {
   name: string;
   description: string;

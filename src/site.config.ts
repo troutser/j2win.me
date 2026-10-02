@@ -13,16 +13,8 @@ export const site = {
   ],
   socials: {
     github: 'https://github.com/troutser',
-    linkedin: '',
-    twitter: '',
-    email: '', 
-    htb: '', // HackTheBox profile
-    tryhackme: '',
-  },
-  skills: {
-    offense: ['Web app pentesting', 'Burp Suite', 'nmap', 'Metasploit', 'Privilege escalation'],
-    defense: ['Threat modeling', 'Log analysis', 'Wireshark', 'Hardening Linux'],
-    code: ['Python', 'TypeScript', 'Go', 'C', 'Bash'],
-    tools: ['Linux', 'Docker', 'Git', 'Ghidra', 'GDB'],
+    linkedin: 'https://www.linkedin.com/in/jeremy-huynh-a2b714342/',
+    email: 'jeremyhuynh80808@gmail.com', 
+    insta: 'https://www.instagram.com/jh.8080808'
   },
 };

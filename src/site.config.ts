@@ -8,8 +8,12 @@ export const site = {
   roles: ['software engineer', 'security researcher', 'CTF player', 'tool builder'],
   location: 'Los Angeles, California',
   about: [
-    "I'm into offensive security, reverse engineering, and writing tools that make the boring parts of hacking faster.",
-    'This site is where I publish writeups and hands-on walkthroughs. Every post has live terminals and runnable code so you can follow along in your browser.',
+    "HI HELLO",
+    "Welcome to my personal website! I'm a current freshman at UCLA.",
+    "I enjoy exploring new technologies and building projects that challenge my skills.",
+    "I'm into math, cybersecurity, and programming and have done various projects and competitions in these areas. Contacts belowwwwwww if you'd like to talk. ",
+    "Feel free to check out my work and projects below!",
+    "...thx 4 visiting..."
   ],
   socials: {
     github: 'https://github.com/troutser',

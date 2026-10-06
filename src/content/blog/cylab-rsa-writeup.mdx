@@ -388,7 +388,7 @@ the cube root of any number that isn't a cube is not an integer.
 This function uses a technique called binary search to efficiently search for the cube root
 in $O(\log n)$ time. 
 
-* Explanation *
+*Explanation*
 Binary search goes between an upper and lower bound of an ordered list of numbers, checks if 
 the desired number $x$ is greater/less the middle, and discards the search space where 
 $x$ cannot be. However, if $x$ is what we want, then it stops. 
@@ -416,7 +416,7 @@ One more time, 1.5 is less than what we want. Discard the lower portion.
 ```
 The middle, 2, is now what we want! This is how the function works; it continuously checks the middle
 of where the cube root could possibly be.
-* Bounds *
+*Bounds*
 Obviously, the cube root (or any $n$-th root) of a number $n > 1$ will be between 
 $n$ and 1.
 $$

@@ -1,0 +1,485 @@
+---
+title: 'CyLab Security Academy - RSA write-ups'
+description: 'Thinking through a little nibble of RSA.'
+date: 2026-10-04
+tags: ['python', 'crypto', 'write-up', 'ctf']
+difficulty: beginner
+---
+
+> "A man is crazy who writes a secret in any other way than one which will conceal it from the vulgar."
+> — **Epistle on the Secret Works of Art and the Nullity of Magic,** ***Roger Bacon***
+
+# Fun With RSA
+WOWOWOWOW what's rsa you might ask? I'm glad you asked. here's a little bit about our sponsor.
+## Rivest–Shamir–Adleman (RSA) Encryption
+All positive integers can be written as the product of one or more prime factors.
+
+$$
+25 = 5 \times 5
+$$
+$$
+13 = 13
+$$
+$$
+1230487218961234 = 2 \times 13 \times 19 \times 206477 \times 12063643
+$$
+
+Notice that for a large integer $N$, it's relatively difficult to decompose them into prime factors (i.e. no
+polynomial time algorithm currently exists, best one is sub-exponential)
+<Callout title="Note">
+The upper bound of numbers is $\sqrt N$ as any working integer $I_1$ larger than $\sqrt N$ would need a smaller integer
+coefficient $I_2$ to multiply to $N$: the square root is the maximization of both two numbers with a product of $N$ without one being
+greater or less than the other.
+
+Mathematically, if $N = a \times b$, and $a$ and $b$ are both greater than $\sqrt N$, then $a \times b > N$ thus
+any factorization has a factor $\leq \sqrt N$ 
+</Callout>
+Yet, it's relatively easy to confirm that those prime factors are in fact the factors of that integer;
+just multiply any given prime factors and check if their product is equal to $N$.
+
+A process being easy one way and hard the other is an essential
+component of good cryptography. RSA encryption utilizes
+this property of prime factorization to encrypt and decrypt securely.
+
+### Setup
+#### Step 1:
+Choose distinct prime integers $p$ and $q$ that multiply to $N$
+$$
+p \times q = n
+$$
+For example, let's say $p = 67$ and $q = 19$ so $N = 1273$
+#### Step 2:
+Compute the Euler Totient function of N.
+$$
+\phi(N) = (p - 1) \times (q - 1)
+$$
+For our numbers, $\phi(N) = (67 - 1) \times (19 - 1) = 1188$.
+<Callout>
+The Euler Totient function $\phi(x)$ counts the number of positive 
+integers up to $x$ that are coprime to x, meaning their greatest common divisor is 1 and 
+don't share any other divisors.
+
+It is defined as such:
+
+$$
+\phi(x) = x \prod_{p|x}(1-\frac{1}{p})
+$$
+
+where $\prod$ means the product of all numbers $p$ that meet criteria (usually all integers $p$ within
+ a range but here meaning all prime numbers $p$ that divide x with no remainder)
+
+
+I will not be going into why it is defined as so, but just note that 
+$\phi(N) = (p - 1) \times (q - 1)$ is just a special case of this function for our
+special $N$. Other use cases of $\phi(x)$ include
+calculating exact cardinality of integers mod n and detecting composite integers
+when combined with Fermat's Little Theorem and Euler's generalization.
+</Callout>
+#### Step 3:
+Choose $e$ between 1 and $\phi$ where $e$ is coprime with $\phi$. $e$ is called the public exponent in (N,e) , since 
+it's used by anyone to encrypt a message to send to a person.
+$$
+e \in (1, \phi) | \gcd(e, \phi) = 1
+$$
+Let's say $e$ in our case is 5.
+<Callout>
+For convenience $\phi$ will mean $\phi(N)$ from now on. Why $e$ must be coprime is explained in the next 
+step.
+</Callout>
+#### Step 4:
+Calculate $d$, the multiplicative inverse of $e\mod\phi$. Via the Extended Euclidean algorithm, our $d = -475$.
+It's easier if we make it positive by adding $\phi$ (we use $\phi$ because adding $\phi$ doesn't change 
+the value mod $\phi$ as it's divided out) so we don't exponentiate by a negative number when 
+decrypting. All in all, we get $d = 713$. $d$ is called the private key in (N, d), since it's only
+known by the receiver of an encrypted message and used to decrypt. This is also why RSA is
+asymmetric encryption since two different keys are used for encryption and decryption.
+<Callout>
+The multiplicative inverse of $a\mod b$ is integer $x$ such that $ax \equiv 1\mod b$. However, $x$ does not
+exist for all $a$ and $b$: it's trivial to see how no coefficient $x$ will make $ax \equiv 1\mod b$ if
+ $a=2$ and $b=4$. If $a$ and $b$ share any common divisor greater than 1, then $ax$ will always
+ never be 1 since the any common divisor also divides the remainder.
+
+
+We have
+ $$
+ ax \equiv 1 \mod b 
+ $$
+
+ which means
+ $$
+ ax = kb + 1
+ $$
+ where $k$ is any integer, since $kb + 1$ is still equivalent to $1 \mod b$ as adding $kb$ does not
+ change the remainder (it gets fully divided by b). This statement is again equivalent to
+ $$
+ ax+kb = 1
+ $$
+ Suppose $c$ divides both $a$ and $b$ and $c > 1$. Then we can get 
+ $$
+ c(\frac{a}{c}x + \frac{b}{c}k) = 1
+ $$
+ Both $\frac{b}{c}k$ and $\frac{a}{c}$ are integers as we defined $c$ to divide them both. Thus the
+ entire thing is parantheses is an integer, too. Thus we can call it $d$ and get 
+ $$
+cd = 1 
+$$
+For $cd$ to equal one and both $c$ and $d$ to be integers, $c$ must be either 1 or -1. However, we 
+defined $c$ to be greater than 1; by contradiction, we have that the $\gcd(a,b)$ must be 1 for 
+$x$ (in other words they are coprime, which is why we chose $e$ to be coprime with $\phi$) to exist such that $ax \equiv 1 \mod b$.
+</Callout>
+### Encryption
+Convert a message $m$ into a number. Bits represent characters and are numbers themselves,
+so we can use the bytes for each character as numbers to encrypt. If $m$ ends up being bigger than $N$
+(which is not good since the message would get messed up through being taken mod $N$), $m$ is divided
+into smaller portions. These are typically padded randomly to prevent RSA from
+becoming simple substitution and thus vulnerable to attacks on substitution ciphers.
+<Callout>
+Almost everywhere RSA is used, a variation of the process described is how
+it's done. However, it is possible to use other ways of mapping
+a message to number; the way described is simply the easiest and most widespread way to do it, 
+which is also a good component of cryptography. For example, we could define each
+word in the English dictionary as a number (e.g "the" = 1, "apple" = 2) and use 0 to represent a space,
+so a message like "The apple" would become 102. Though, we would have to account for words 
+represented by numbers ending in 0 making where the space is ambiguous and words that aren't
+in the English language.
+</Callout>
+Actually encrypting $m$ requires exponentiating it by $e$, which is our case is 5, and then taking 
+the result mod $N$. Since we have such a small
+$N$, we'll need to split byte by byte. For the message "Hello, world!", the bytes are 
+```text title="bytes"
+01001000 01100101 01101100 01101100 01101111 00101100 00100000 01110111 01101111 01110010 01101100 01100100 00100001
+```
+Converting each byte to decimal 
+```text title="decimal"
+72 101 108 108 111 44 32 119 111 114 108 100 33
+```
+and exponentiating each by $e$ produces
+```text title="exponentiating"
+1934917632 10510100501 14693280768 14693280768 16850581551 164916224 33554432 23863536599 16850581551 19254145824 14693280768 10000000000 39135393
+```
+and finally mod $N$ gives
+```text title="ciphertext"
+914 1183 337 337 213 347 698 807 213 456 337 693 827
+```
+### Decryption
+To decrypt, we exponentiate the ciphertext(s) by $d$ then take it mod $N$, which gives us the original message. 
+This is left as an exercise to the reader to verify, and another helpful exercise is just picking your own set up
+for RSA and attempting to use it to encrypt and decrypt!
+<Callout>
+Euler's theorem states that $a^\phi \equiv 1 \mod N$ if $\gcd(a,N)=1$. Using that, we can show that
+$
+c^d \equiv m \mod N
+$.
+
+**Proof:**
+
+We have
+$$
+m^e \equiv c \mod N
+$$
+from our method of encryption. Thus we rewrite our goal as  
+$$
+(m^e)^d \equiv m \mod N
+$$
+which is equivalent to
+$$ 
+m^{ed} \equiv m \mod n
+$$
+Remember before how we defined $d$: it's the multiplicative inverse of $e$.
+$$
+ed \equiv 1 \mod \phi
+$$
+so we can write $ed$ as 
+$$
+ed = 1 + k\phi
+$$
+for some integer $k$. Replace $ed$ in our original equation to get
+$$
+m^{1+k\phi} \equiv m \mod N
+$$
+By the exponent rule for addition, we have equivalently
+$$
+m^1 \times m^{k\phi} \equiv m \mod N
+$$
+and by the exponent rule for multiplication, we have equivalently
+$$
+m (m^k)^\phi \equiv m \mod N
+$$
+Notice that by Euler's theorem, $(m^k)^\phi \equiv 1 \mod N$, so we end up with
+$$
+m \equiv m \mod N
+$$
+which is true, proving our statement!
+
+actually..
+
+wait... 
+
+what about the condition $\gcd(a,N)=1$? 'r'$ = 114 = 6 \times 19$ and $N = 19 * 67$,
+so the condition isn't met!
+
+**CORRECT!**
+
+so it's wrong?
+
+**INCORRECT!**
+
+It still decrypts correctly. To show this, we can prove the result $\mod p$ and $\mod q$. We want
+$$
+c^d\equiv m \mod p
+$$
+and
+$$
+c^d\equiv m \mod q 
+$$
+because $p$ and $q$ are prime, so each one divides $m$ or doesn't meaning either $gcd(a,N)=1$ 
+or $gcd(a,N)=prime$. Subtract m from both sides to get $c^d-m\equiv 0 \mod p/q$ which is the same 
+as saying p and q divide $c^d-m$. Thus $pq$ divides $c^d-m$,
+which is equivalent to $c^d \equiv m \mod N$.
+
+**Actual proof:**
+
+Since $p$ divides $N$, anything congruent $\mod N$ is also congruent $\mod p$. For example,
+$30 \equiv 55 \mod 25$ since both remainders are 5, then also $30 \equiv 55 \mod 5$ is true since both 
+remainders are 0. Thus $c \equiv m^e \mod p$
+and thus $c^d \equiv m^{ed} \mod p$.
+
+**Case 1: $p$ doesn't divide $m$.** By Euler's theorem (and also
+ Fermat's little theorem which is simply a special case of Euler's theorem
+for a prime modulus), we get $m^{\phi(p)}\equiv 1 \mod p$. 
+Substituting with the definition of $\phi(p)$ for a prime, we get $m^{p-1} \equiv 1 \mod p$, so we get (reminder
+ that $ed = 1 + k\phi = 1 + k(p-1)(q-1)$
+)
+$$
+m^{ed} = m \times (m^{p-1})^{k(q-1)} \equiv m \times 1 \equiv m \mod p
+$$
+
+**Case 2: $p$ divides $m$.** Then $m \equiv 0 \mod p$, so
+$$
+m^{ed} \equiv 0 \equiv m \mod p
+$$
+
+Either way, $c^d \equiv m \mod p$, and the exact same argument with $q$ gives $c^d \equiv m \mod q$.
+
+Subtract $m$ from both sides to get $c^d - m \equiv 0 \mod p$ and $\mod q$, which is the same as saying
+$p$ and $q$ both divide $c^d - m$. Write $c^d - m = pt$. Then $q$ divides $pt$, and since $q$ is prime and
+doesn't divide $p$, it must divide $t$. Say that $t = qs$, and
+$$
+c^d - m = pqs = Ns
+$$
+which is equivalent to
+$$
+c^d \equiv m \mod N
+$$
+for every $m$, 'r' included!
+</Callout>
+## The Challenges
+### Mind Your Ps and Qs
+<Callout title="Problem">
+    In RSA, a small e value can be problematic, but what about N? Can you decrypt this?
+</Callout>
+```text title="values"
+Decrypt my super sick RSA:
+c: 717608817902276639011922897702552744324264244069272484013719744328086856277690292
+n: 1368992139315019955067447961537607041364451719382349005056752379702694554965203011
+e: 65537
+```
+Remember that $N$ is comprised of $p$ and $q$, which is needed to calculate 
+$\phi$ and thus the private exponent $d$ required to decrypt. Looking at the problem statement,
+it appears that they're saying $N$ is small, insinuating that $N$ can be easily factored. 
+Put it into factordb.com and they're right! Our factors are 
+```text title="factors"
+p = 2074606527507983503944226222695401999839
+q = 659880377875535146491994798968813949893149
+```
+Thus our $\phi$ is 
+```text title="totient"
+1368992139315019955067447961537607041363789764397945961926756440677503045613310024
+```
+Calculating $d$ such that $ed\equiv 1\mod\phi$, we then get 
+```text title="d"
+-33463927356800921128798261049227863348410687131933250393009503302948866732876431
+```
+where we can add $d$ to end up at 
+```text title="positive d"
+1335528211958219033938649700488379178015379077266012711533746937374554178880433593
+```
+We raise the ciphertext to the power of $d$ and get
+```python
+print(pow(717608817902276639011922897702552744324264244069272484013719744328086856277690292, 1335528211958219033938649700488379178015379077266012711533746937374554178880433593, 1368992139315019955067447961537607041364451719382349005056752379702694554965203011))
+# outputs 310924469227196415248432899983304451945245691282380935847926787838996952580711265
+```
+Convert to binary
+```text title="binary"
+101101000011011101100011000100100000110110100000000000100110111110010110110111010000110110111001000010100111110111100100110001010011110100110101010010010101001011101111010011000001001110000100001111011010011101111110000100110111111100110010000101100100100110110110111001
+```
+and the converting each byte to text, we get
+```text title="flag?"
+§Ó#Sv66öFóuóåôåó×7·ÖVF6
+```
+which... doesn't look quite right. 
+
+Why?
+
+Well, there's 8 bits in a byte and so our binary should have a multiple of 8 for the number of bits.
+However, we only have 268 digits which is not a multiple of 8. 
+We're off by 4 digits to get a whole number of bytes.
+This is because when we converted to binary, the leading zeros didn't come with; you wouldn't write
+5 as 05 normally, perhaps only as formatting for a date. Similarly, converting to binary doesn't 
+provide these leading zeros, but converting to bytes does. However, we can just add the 4 zeros to the
+start by ourselves to pad it correctly for a whole number of bytes. Doing this, we end up with
+```text title="flag"
+}2517ca3a_do0g_0n_N_11ams{ymedaca
+```
+which when reversed gives
+```text title="flag
+academy{sma11_N_n0_g0od_a3ac7152}
+```
+...And that's our flag! This one was just a bunch of math and a test of whether one knows
+what RSA is. The point, however, was to show that we need an $N$ so large that it's
+not feasibly factorable, which happens at around 2048 bits or so. NEXT!
+### Mini RSA
+<Callout title="Problem">
+What happens if you have a small exponent? There is a twist though, we padded the plaintext so that 
+$(M∗∗e)$ is just barely larger than $N$. Let's decrypt this
+</Callout>
+```text title="values"
+N: 1615765684321463054078226051959887884233678317734892901740763321135213636796075462401950274602405095138589898087428337758445013281488966866073355710771864671726991918706558071231266976427184673800225254531695928541272546385146495736420261815693810544589811104967829354461491178200126099661909654163542661541699404839644035177445092988952614918424317082380174383819025585076206641993479326576180793544321194357018916215113009742654408597083724508169216182008449693917227497813165444372201517541788989925461711067825681947947471001390843774746442699739386923285801022685451221261010798837646928092277556198145662924691803032880040492762442561497760689933601781401617086600593482127465655390841361154025890679757514060456103104199255917164678161972735858939464790960448345988941481499050248673128656508055285037090026439683847266536283160142071643015434813473463469733112182328678706702116054036618277506997666534567846763938692335069955755244438415377933440029498378955355877502743215305768814857864433151287
+e: 3
+ciphertext (c): 5709720175026317841944505166332182779419760031115432215563425901875620052791608163398750297304277886495537367793006288112991932717211066611899319963701838062828209254458935983141207100322897221021063116398621664612418813778554568264340430225832578419510188716272485416847020031786240493474216219976022230869888952027678216917573096647103329007747318226924546155390806085120914969452892742334587155888067115809741247942520249413550823776542714197976954393983964547415885494497967317041948018762619837565110934913856322148114605081220228082382496419481186347789827332766319099768385339675485674098729928722491454024819209643705436617193628436345338680537047177323301194162660757103489761598885882853346119600569195748535459069143523542108427003139728980057083066664641150644821647353430627540846457261643465679095174704766947857556896761656169629741900371937539062751103533758611539748595561989792317060484717828643461989154370495487728398479845553917495920818130003766392290200672893336450122809476169268494312
+```
+If you were paying attention, the ciphertext $c$ when RSA done normally cannot be
+bigger than $N$. However, here the ciphertext is. I don't know what happened here
+but it doesn't seem like the value for the ciphertext was done correctly. Let's solve it anyways.
+
+Recall the definition of ciphertext $c$.
+$$
+m^e \equiv c \mod N
+$$
+Notice how that if $m^e$ doesn't exceed $N$, then the public exponent $e$ is able to be used
+to get the original message since it doesn't wrap around; just take the $e$-th root of $c$.
+Here, obviously it didn't wrap around. Therefore we can just take the $e$-th root here, which
+is also relatively quick since $e$ is so small. However, since we're dealing with such a large number, it'd 
+be easier to write our own function to cube root.
+```python title=cube_root.py
+c = 5709720175026317841944505166332182779419760031115432215563425901875620052791608163398750297304277886495537367793006288112991932717211066611899319963701838062828209254458935983141207100322897221021063116398621664612418813778554568264340430225832578419510188716272485416847020031786240493474216219976022230869888952027678216917573096647103329007747318226924546155390806085120914969452892742334587155888067115809741247942520249413550823776542714197976954393983964547415885494497967317041948018762619837565110934913856322148114605081220228082382496419481186347789827332766319099768385339675485674098729928722491454024819209643705436617193628436345338680537047177323301194162660757103489761598885882853346119600569195748535459069143523542108427003139728980057083066664641150644821647353430627540846457261643465679095174704766947857556896761656169629741900371937539062751103533758611539748595561989792317060484717828643461989154370495487728398479845553917495920818130003766392290200672893336450122809476169268494312
+
+def cube_root(x):
+    lower, upper = 1, x
+    mid = (lower+upper)//2
+    while (mid**3!=x):
+        if (mid**3 > x):
+            upper=mid-1
+        else:
+            lower=mid+1
+
+        mid = (lower+upper)//2
+
+    return mid
+
+print(cube_root(c))
+# prints 1787330808968142828287809319332701517353332911736848279839502759158602467824780424488141955644417387373185756944952906538004355347478978500948630620749868180414755933760446136287315896825929319145984883756667607031853695069891380871892213007874933643544014803829752116973952588637032204981055419406087847822034466877741943243746534587658
+```
+<Callout>
+This function hangs for any number that isn't a perfect cube, since `mid` is always an integer while
+the cube root of any number that isn't a cube is not an integer.
+</Callout>
+<Callout>
+This function uses a technique called binary search to efficiently search for the cube root
+in $O(\log n)$ time. 
+
+### Explanation
+Binary search goes between an upper and lower bound of an ordered list of numbers, checks if 
+the desired number $x$ is greater/less the middle, and discards the search space where 
+$x$ cannot be. However, if $x$ is what we want, then it stops. 
+
+For example, for the list,
+```text title="list"
+1 2 4 5 123 321 6767 123012 1283498247912734
+```
+suppose we want to find 2. Looking near the middle at 321, it's greater than
+the number we want. Since the list is ordered ascendingly, we know that any number
+above 321 is also greater and thus not equal to the number we want. We can discard that 
+half of the list to narrow down our search.
+```text title="culled search space"
+1 2 4 5
+```
+Again, look near the middle (this time the list has an even number of elements so the middle is 
+the average of the two numbers near the middle, which would be 3). 3 is greater than 2, so again 
+discard the greater half of the list.
+```text title="culled search space"
+1 2 
+```
+One more time, 1.5 is less than what we want. Discard the lower portion.
+```text title="culled search space"
+2
+```
+The middle, 2, is now what we want! This is how the function works; it continuously checks the middle
+of where the cube root could possibly be.
+### Bounds
+Obviously, the cube root (or any $n$-th root) of a number $n > 1$ will be between 
+$n$ and 1.
+$$
+x > 1 \vee x = \sqrt[3]{n}\to x \in [1,n)
+$$
+It's possible to cut down this upper bound further. If $n$ can be written
+with $b$ bits, then $n < 2^b$ since the max possible value of $n$ with $b$ bits 
+is $\sum_{i=0}^{b-1} b_i2^{i}$ where $b_i$ is the $i$-th bit. The intuition is that
+the next bit to the left, by itself, is one greater than all the bits turned on right now. For example,
+adding 1 to 1111 leads to 10000. Mathematically,
+$$
+S = \sum_{i=0}^{b-1} b_i2^{i} = 1 + 2 + ... + 2^{b-1}
+$$
+$$
+2S = 2 + 4 + ... + 2^b
+$$
+$$
+2S-S = 2^b - 1 \to S=2^b-1 < 2^b
+$$
+Then, if $n < 2^b$, $\sqrt[3]{n} < \sqrt[3]{2^b} \to \sqrt[3]{n} < 2^{b/3}$ which would be 
+written as 
+```python
+upper = 2**(-(-n.bit_length()//3)) 
+# the -(-x//y) method here is simply division rounding up, or ceil(x/y)
+# ceil(b/3) ensures that the upper bound includes all integers up to at least 
+# 2 ^ (b/3) when it's not always an integer.
+```
+in python. However, simply using $N$ as the upper bound suffices here.
+</Callout>
+Now, let's see if $\sqrt[e]{c}$ actually means anything. Converting to bits and then text, we get
+```text title="flag?"
+µåí}Í ÁÔÅ}Í}±ÉÍÉ|ÌÕÈÙÅô	
+```
+which doesn't look right. The question said it was padded, and in binary 
+we're missing 2 bits to form a whole byte, so if we add one more 0 and remove the space padding, the text becomes
+```text title="flag"
+academy{e_sh0u1d_b3_lArg3r_35f26e1a}	
+```
+BANG!!! Well, this one was also straightforward. But let's look at what it would have been like
+if the ciphertext was taken modulo $N$ like it was supposed to.
+```text title="values, corrected"
+N: 1615765684321463054078226051959887884233678317734892901740763321135213636796075462401950274602405095138589898087428337758445013281488966866073355710771864671726991918706558071231266976427184673800225254531695928541272546385146495736420261815693810544589811104967829354461491178200126099661909654163542661541699404839644035177445092988952614918424317082380174383819025585076206641993479326576180793544321194357018916215113009742654408597083724508169216182008449693917227497813165444372201517541788989925461711067825681947947471001390843774746442699739386923285801022685451221261010798837646928092277556198145662924691803032880040492762442561497760689933601781401617086600593482127465655390841361154025890679757514060456103104199255917164678161972735858939464790960448345988941481499050248673128656508055285037090026439683847266536283160142071643015434813473463469733112182328678706702116054036618277506997666534567846763938692335069955755244438415377933440029498378955355877502743215305768814857864433151287
+e: 3
+ciphertext (c): 1220012318588871886132524757898884422174534558055593713309088304910273991073554732659977133980685370899257850121970812405700793710546674062154237544840177616746805668666317481140872605653768484867292138139949076102907399831998827567645230986345765474386082421144307534571699205194983368689411816226007643064954729215840635659583117133740500954205974875390057358188693046676903289930281540940412295980336146393416954525985992752798203045915510615113622948111778806320744724053802074960057287479336158454709711228187826016190033306377026203314361301932347821092319618619935053234187382079077148713322674442826911883069528540253556263918866573750163001632083631388027202763984747153601103043353896172647828985898572944046802007552386765619056890053190423953960201377144265891393217286098978682913818684143643056111293363915464884208356874230514968369175935792624184018193591389668970019543078419942628261961962015259372158970475685574715201244632387257077193912230917119974983481113661168899916641126944997341
+```
+It's obvious to see that the ciphertext is not a cube root, so we can't simply take the cube root and 
+expect the flag. However, from the definition of modulus arithmetic, $m^e = c + kN$. Thus, we can simply
+bruteforce what $m^e$ could be by iterating k=1,k=2,k=... . This is a valid way for this one since the problem states that $m^e$ is just
+barely larger than N.
+```python
+for k in range(max_k):
+    candidate = c + k * N
+    m = iroot(candidate, e)
+    if m**e == candidate:
+        break
+```
+<Callout>
+This code finds the first cube root, but if one cube root exists in the form $c + kN$,
+there are infinitely many. However, finding the first cube root works since all possible 
+cube roots are the same modulo $N$ since $\gcd(e, \phi) = 1 \implies
+\exists d \in \mathbb{Z} : ed \equiv 1 \mod \phi \implies 
+f\text{ injective}, |\mathbb{Z}_N| < \infty \implies
+f(\mathbb{Z}_N)=\mathbb{Z}_N \implies
+f\text{ bijective} \implies
+\forall c \in \mathbb{Z}_N, \exists !m \in \mathbb{Z}_N : m^e \equiv c \mod N$
+</Callout>

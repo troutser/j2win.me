@@ -1,6 +1,7 @@
 ---
 import type { MarkdownHeading } from 'astro';
 import Base from './Base.astro';
+import 'katex/dist/katex.min.css';
 
 interface Props {
   title: string;
@@ -137,6 +138,16 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
   }
   .prose :global(.codeblock) {
     margin: 1.2em 0;
+  }
+  .prose :global(.katex-display) {
+    margin: 1.2em 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-block: 0.3em; /* headroom for super/subscripts */
+  }
+  .prose :global(.katex) {
+    font-size: 1.05em; /* Slightly bump math size if it looks too small compared to your text */
+    overflow: visible;
   }
 </style>
 
